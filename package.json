@@ -1,0 +1,44 @@
+{
+  "name": "hackathon",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node index.js",
+    "build": "vite build --config client/vite.config.js",
+    "dev": "vite --config client/vite.config.js"
+  },
+  "author": "Team Schrodinger",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "@sendgrid/mail": "^8.1.6",
+    "axios": "^1.15.0",
+    "bcrypt": "^6.0.0",
+    "connect-redis": "^9.0.0",
+    "cors": "^2.8.6",
+    "cron": "^4.4.0",
+    "dotenv": "^17.4.1",
+    "ejs": "^5.0.1",
+    "express": "^5.2.1",
+    "express-session": "^1.19.0",
+    "form-data": "^4.0.5",
+    "formdata": "^0.10.4",
+    "http-proxy-middleware": "^3.0.5",
+    "ioredis": "^5.10.1",
+    "multer": "^2.1.1",
+    "node-cron": "^4.2.1",
+    "nodemailer": "^8.0.5",
+    "pg": "^8.20.0",
+    "react": "^19.2.5",
+    "react-dom": "^19.2.5",
+    "react-router-dom": "^7.14.0",
+    "redis": "^5.11.0",
+    "sendgrid": "^4.9.0",
+    "ws": "^8.20.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^6.0.1",
+    "vite": "^8.0.8"
+  }
+}

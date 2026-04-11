@@ -521,7 +521,7 @@ async function sendWelcomeEmail(email, ownerName, shopName) {
     await transporter.sendMail({
         from: `"SmartRetail" <${process.env.MAIL_USER}>`,
         to:    email,
-        subject: `Welcome to SmartRetail, ${ownerName}! 🛒`,
+        subject: `Welcome to Nyatik Nayan, ${ownerName}! 🛒`,
         html: `
         <div style="font-family:sans-serif;max-width:560px;margin:0 auto;background:#060912;color:#e2e8f0;padding:32px;border-radius:16px;border:1px solid #1a2540">
           <h1 style="font-size:24px;background:linear-gradient(90deg,#00e5ff,#7c3aed);-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin:0 0 8px">
@@ -532,7 +532,7 @@ async function sendWelcomeEmail(email, ownerName, shopName) {
             <p style="margin:0 0 8px"><strong>👤 Owner:</strong> ${ownerName}</p>
             <p style="margin:0"><strong>🏪 Store:</strong> ${shopName}</p>
           </div>
-          <a href="${process.env.APP_URL || 'http://localhost:3000'}"
+          <a href="${process.env.APP_URL || 'https://github.com/Debarghyasg/Nyatik-Nayan'}"
              style="display:inline-block;margin-top:20px;padding:12px 28px;background:linear-gradient(135deg,#00e5ff,#7c3aed);color:#fff;font-weight:700;border-radius:10px;text-decoration:none">
             Open Dashboard →
           </a>

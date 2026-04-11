@@ -1,395 +1,322 @@
-# SmartRetail — Full Architecture & Integration Playbook
-## Cognizant Technoverse 2026 Alignment
+# SmartRetail
+
+An intelligent retail fraud detection platform built for Cognizant Technoverse 2026. SmartRetail lets store owners scan product barcodes at checkout and instantly detect counterfeit or mismatched goods using AI-powered verification, real-time fraud scoring, and automated alerting.
 
 ---
 
-## 1. SYSTEM ARCHITECTURE OVERVIEW
+## What it does
 
-```
-┌─────────────────────────────────────────────────────────────────────────┐
-│                        SMARTRETAIL SYSTEM                               │
-├──────────────────┬──────────────────────┬───────────────────────────────┤
-│   FRONTEND       │   NODE.JS GATEWAY    │    FASTAPI CORE ENGINE        │
-│  HTML/CSS/JS     │   (Express)          │    (Python)                   │
-│                  │                      │                               │
-│  • login.html    │  • Auth routes       │  • /verify  (barcode logic)   │
-│  • signup.html   │  • Session → Redis   │  • /match   (OCR result in)   │
-│  • home.html     │  • Proxy to FastAPI  │  • /alert   (trigger emails)  │
-│  • checkout.html │  • Nodemailer        │  • /inventory CRUD            │
-│  • dashboard.html│  • SendGrid triggers │  • /audit-log                 │
-└──────────────────┴──────────────┬───────┴───────────────┬───────────────┘
-                                  │                       │
-                        ┌─────────▼──────┐    ┌──────────▼──────────┐
-                        │    REDIS        │    │   POSTGRESQL         │
-                        │  • Sessions     │    │  • retailers         │
-                        │  • Txn queue    │    │  • products          │
-                        │  • Rate limits  │    │  • transactions      │
-                        │  • Fraud flags  │    │  • audit_log         │
-                        │  • Live locks   │    │  • fraud_incidents   │
-                        └────────────────┘    └─────────────────────┘
-                                  │
-                        ┌─────────▼──────────────────────────────────┐
-                        │         BARCODE HARDWARE INPUT              │
-                        │   USB/Bluetooth HID Scanner → browser       │
-                        │   keydown listener captures scan string     │
-                        │   → POST /api/verify → Redis lock check     │
-                        └────────────────────────────────────────────┘
-```
+When a cashier scans a barcode, SmartRetail runs it through a multi-layer verification pipeline in under a second. It cross-references your inventory database, analyzes scan frequency and barcode age for anomalies, computes a fraud risk score, and either approves the transaction or blocks it — flashing the result on screen and firing an email alert if fraud is detected.
 
 ---
 
-## 2. HOW EACH TECH FITS — PRECISE ROLE MAP
+## Tech stack
 
-### Frontend: HTML / CSS / JavaScript
-| File | Role |
+| Layer | Technology |
 |---|---|
-| `login.html` | Session-based auth UI → POST /api/login → Redis session |
-| `signup.html` | Retailer onboarding → POST /api/register → Nodemailer welcome mail |
-| `home.html` | Product image + barcode image upload → W3C BarcodeDetector → FastAPI verify |
-| `checkout.html` | **HID barcode scanner input** → Redis transaction gate → approve/block UI |
-| `dashboard.html` | Audit log viewer, fraud incident list, inventory CRUD |
+| Frontend | React 19 + Vite + React Router |
+| Gateway | Node.js + Express 5 |
+| AI engine | FastAPI (Python) + YOLO + EasyOCR |
+| Cache / gate | Redis |
+| Database | PostgreSQL |
+| Email | Nodemailer (SMTP) + SendGrid |
+| Real-time | WebSocket (ws) |
+| Jobs | node-cron |
 
-### Node.js (Express) — Gateway Layer
-```
-Port 3000
-├── Auth & Session (express-session → connect-redis → Redis)
-├── Static file serving (EJS views)
-├── Nodemailer — welcome email on signup
-├── SendGrid webhook triggers — fraud alerts, daily digest
-├── HTTP proxy to FastAPI (port 8000) for all /api/verify, /api/match
-└── WebSocket (ws) — pushes real-time txn status to checkout UI
-```
+---
 
-### FastAPI (Python) — Core Verification Engine
-```
-Port 8000
-├── POST /verify
-│     • Receives barcode string from scanner
-│     • Queries PostgreSQL products table
-│     • Returns: { found, product_name, price, quantity, risk_score }
-│
-├── POST /match
-│     • Receives { barcode_value, yolo_label, ocr_text } from YOLO teammate
-│     • Compares barcode DB entry vs YOLO product label
-│     • Returns: { match: bool, confidence, fraud_type }
-│
-├── POST /alert
-│     • Called by Node.js on fraud detection
-│     • Logs to fraud_incidents table
-│     • Returns 200 — Node.js fires SendGrid email
-│
-├── GET /inventory/{barcode}
-│     • Inventory lookup by barcode
-│
-└── GET /audit-log
-      • Returns paginated transaction audit log
-```
+## Architecture
 
-### Redis — 3 Critical Roles
-
-**Role 1: Session Store**
 ```
-Key: sess:{session_id}
-Value: { user_id, shop_name, email, login_at }
-TTL: 30min (rolling) or 7 days (remember-me)
-```
-
-**Role 2: Transaction Gate (NO Checkout Queue)**
-```
-Key: txn:lock:{barcode}
-Value: "processing"
-TTL: 5 seconds
-
-Flow:
-1. Scanner fires barcode
-2. Node.js → SET txn:lock:{barcode} "processing" NX EX 5
-3. If SET returns null → "Transaction already processing"  (blocks duplicate)
-4. If SET succeeds → call FastAPI /verify
-5. On result → DEL txn:lock:{barcode}
-6. Publish result to WebSocket → UI updates
-
-This prevents the SAME barcode being scanned twice in rapid succession
-(cashier mis-scan, conveyor belt double-read) — no queue needed.
-```
-
-**Role 3: Fraud Flag Cache**
-```
-Key: fraud:flag:{barcode}
-Value: { count, first_seen, last_seen }
-TTL: 24 hours
-
-If count > 3 → auto-trigger SendGrid fraud incident report
-```
-
-### PostgreSQL — Tables
-```sql
-retailers      — registered store owners
-products       — inventory (barcode, name, price, quantity, image_url)
-transactions   — every scan result (approved/blocked/partial)
-audit_log      — immutable append-only record of all actions
-fraud_incidents — fraud event log linked to transactions
+┌─────────────────────────────────────────────────────────┐
+│               React Frontend (Vite)                     │
+│  login  ·  signup  ·  home  ·  checkout  ·  dashboard  │
+└─────────────────────┬───────────────────────────────────┘
+                      │ REST + WebSocket
+┌─────────────────────▼───────────────────────────────────┐
+│           Node.js Express Gateway  :3000                │
+│  Auth & Redis sessions  ·  Redis txn gate               │
+│  FastAPI proxy  ·  SendGrid  ·  Nodemailer  ·  Cron     │
+└──────────┬──────────────────────────┬───────────────────┘
+           │ HTTP proxy               │ read/write
+┌──────────▼──────────┐   ┌──────────▼──────────────────┐
+│  FastAPI  :8000     │   │  Redis                       │
+│  /verify            │   │  Sessions · Txn locks        │
+│  /match             │   │  Fraud flag cache            │
+│  /inventory         │   └─────────────────────────────┘
+│  /audit-log         │   ┌─────────────────────────────┐
+└──────────┬──────────┘   │  PostgreSQL                  │
+           │              │  retailers · products        │
+           └──────────────►  transactions · audit_log    │
+                          │  fraud_incidents             │
+                          └─────────────────────────────┘
 ```
 
 ---
 
-## 3. BARCODE HARDWARE INPUT — THE RIGHT WAY
-
-### Why HID Scanner beats camera for POS:
-Traditional USB/Bluetooth barcode scanners emulate a **keyboard (HID device)**. They type the barcode string + `Enter` directly into whatever input is focused. This is:
-- Instant (< 50ms per scan)
-- No image processing needed at checkout
-- Works offline
-- Industry standard at every retail POS
-
-### Implementation in `checkout.html`:
-```javascript
-// HID scanners type fast — detect burst keystrokes
-let scanBuffer = '';
-let scanTimer  = null;
-
-document.addEventListener('keydown', (e) => {
-  if (e.key === 'Enter' && scanBuffer.length >= 6) {
-    handleScan(scanBuffer.trim());
-    scanBuffer = '';
-    return;
-  }
-  if (e.key.length === 1) {
-    scanBuffer += e.key;
-    clearTimeout(scanTimer);
-    scanTimer = setTimeout(() => { scanBuffer = ''; }, 150); // 150ms burst window
-  }
-});
-```
-
-### Manual fallback input:
-A visible `<input>` field with autofocus for manual entry when scanner is unavailable.
-
----
-
-## 4. TRANSACTION GATING WITHOUT A QUEUE
-
-Traditional queue problem: Scanner fires 3 times before response → 3 duplicate DB writes.
-
-**Redis NX (Not eXists) lock solves this:**
-```
-Scan fires → Node checks Redis → if locked: show "Processing..." → if free: lock + verify → unlock
-```
-
-No queue. No race condition. Sub-millisecond gate. Scales to any number of checkout terminals because each terminal uses its own barcode as the lock key.
-
-```javascript
-// Node.js gateway code
-async function gateTransaction(barcode, shopId) {
-  const lockKey = `txn:lock:${shopId}:${barcode}`;
-  const locked  = await redis.set(lockKey, '1', 'NX', 'EX', 5);
-  if (!locked) return { status: 'duplicate', message: 'Scan already processing' };
-
-  try {
-    const result = await axios.post('http://localhost:8000/verify', { barcode, shopId });
-    await logTransaction(barcode, result.data, shopId);
-    if (result.data.fraud_risk > 0.7) await triggerFraudAlert(barcode, result.data);
-    return result.data;
-  } finally {
-    await redis.del(lockKey);
-  }
-}
-```
-
----
-
-## 5. ALERTING SYSTEM — NODEMAILER + SENDGRID
-
-### Trigger Map:
-| Event | System | Email Type |
-|---|---|---|
-| Retailer signs up | Nodemailer (SMTP) | Welcome + onboarding guide |
-| Password reset | Nodemailer (SMTP) | Reset link |
-| Transaction BLOCKED | SendGrid API | Real-time fraud alert to store owner |
-| Fraud flag > 3 in 24h | SendGrid API | Incident report with barcode details |
-| Daily summary (cron) | SendGrid API | Daily transaction digest |
-| 0 inventory warning | SendGrid API | Low stock alert |
-
-### Why two systems:
-- **Nodemailer**: Transactional, triggered by Node.js events, uses SMTP (Gmail/own server). Simple and free.
-- **SendGrid**: Templated, high-deliverability, built for automated/bulk triggers. Has open-rate tracking. Required for fraud reports that must not land in spam.
-
-### Nodemailer — Welcome Email (existing signup flow):
-```javascript
-// Already in server.js — triggered in POST /api/register
-const transporter = nodemailer.createTransport({ service: 'gmail', auth: { user, pass } });
-await transporter.sendMail({
-  from: '"SmartRetail" <noreply@smartretail.com>',
-  to: newUser.email,
-  subject: `Welcome to SmartRetail, ${newUser.owner_name}! 🛒`,
-  html: welcomeTemplate(newUser)
-});
-```
-
-### SendGrid — Fraud Alert (FastAPI triggers → Node.js fires):
-```javascript
-// node.js fraud alert trigger
-async function triggerFraudAlert(barcode, verifyResult) {
-  await sgMail.send({
-    to: sessionUser.email,
-    from: 'alerts@smartretail.com',
-    templateId: 'd-SENDGRID_TEMPLATE_ID',
-    dynamicTemplateData: {
-      barcode, product_name: verifyResult.product_name,
-      risk_score: verifyResult.risk_score,
-      timestamp: new Date().toISOString(),
-      action_taken: 'TRANSACTION_BLOCKED'
-    }
-  });
-}
-```
-
----
-
-## 6. FASTAPI ↔ NODE.JS INTEGRATION PATTERN
-
-Node.js does NOT duplicate FastAPI's logic. It only:
-1. Validates session (Redis check)
-2. Applies Redis transaction gate
-3. Proxies verified request to FastAPI
-4. Receives result → fires email if needed → pushes to WebSocket
+## Project structure
 
 ```
-Browser → POST /api/scan (Node, port 3000)
-              ↓ check Redis session
-              ↓ apply txn gate
-              ↓ proxy → POST http://localhost:8000/verify (FastAPI)
-              ↓ receive result
-              ↓ log to DB (via FastAPI /audit)
-              ↓ if fraud → SendGrid
-              ↓ WebSocket push to checkout UI
-              ↓ return JSON to browser
-```
-
----
-
-## 7. YOLO/EasyOCR TEAMMATE INTEGRATION POINT
-
-Your teammate's ML model sends its result to:
-```
-POST /api/match
-Body: {
-  barcode_value: "8901030823437",   // from hardware scanner
-  yolo_label:    "Nestle Milo",     // from YOLO detection
-  ocr_text:      "Milo 500g Nestle" // from EasyOCR
-}
-```
-
-FastAPI `/match` endpoint:
-1. Looks up `barcode_value` in PostgreSQL → gets `db_product_name`
-2. Fuzzy-matches `yolo_label` vs `db_product_name` (using `rapidfuzz`)
-3. Returns `{ match: bool, confidence: 0-100, fraud_type: "LABEL_SWAP"|"COUNTERFEIT"|null }`
-
----
-
-## 8. FILE STRUCTURE (FINAL)
-
-```
-smartretail/
-├── views/                    ← EJS templates (served by Node.js)
-│   ├── login.ejs
-│   ├── signup.ejs
-│   ├── home.ejs              ← product image + barcode upload
-│   ├── checkout.ejs          ← HID scanner terminal
-│   └── dashboard.ejs         ← audit + fraud log
-│
-├── public/                   ← static assets
-│   ├── css/
-│   └── js/
-│
-├── server.js                 ← Node.js Express gateway
-├── routes/
-│   ├── auth.js               ← login, signup, logout
-│   ├── scan.js               ← txn gate + FastAPI proxy
-│   └── alerts.js             ← Nodemailer + SendGrid
-│
-├── api/                      ← FastAPI (Python)
+HC2/
+├── api/                        # FastAPI Python engine
 │   ├── main.py
-│   ├── routes/
-│   │   ├── verify.py
-│   │   ├── match.py
-│   │   ├── inventory.py
-│   │   └── audit.py
-│   └── db.py
+│   └── __pycache__/
 │
+├── client/                     # React frontend
+│   ├── src/
+│   │   ├── app.jsx             # Router + auth guard
+│   │   ├── login.jsx
+│   │   ├── signup.jsx
+│   │   ├── home.jsx            # Image upload + OCR verify
+│   │   ├── checkout.jsx        # HID scanner terminal
+│   │   ├── index.css
+│   │   └── main.jsx
+│   ├── index.html
+│   ├── vite.config.js
+│   └── dist/                   # Built output (served by Express)
+│
+├── index.js                    # Node.js Express gateway
 ├── .env
-├── requirements.txt          ← FastAPI deps
-└── package.json              ← Node deps
+├── package.json
+└── README.md
 ```
 
 ---
 
-## 9. REDIS SETUP (connect-redis + ioredis)
+## Getting started
 
-```javascript
-// server.js — replace current session with Redis-backed session
-const session      = require('express-session');
-const RedisStore   = require('connect-redis').default;
-const { createClient } = require('redis');
+### Prerequisites
 
-const redisClient = createClient({ url: process.env.REDIS_URL || 'redis://localhost:6379' });
-redisClient.connect().catch(console.error);
+- Node.js >= 20
+- Python >= 3.10
+- PostgreSQL running locally
+- Redis running locally (`redis-server`)
 
-app.use(session({
-  store:             new RedisStore({ client: redisClient }),
-  secret:            process.env.SESSION_SECRET,
-  resave:            false,
-  saveUninitialized: false,
-  rolling:           true,
-  cookie: { maxAge: 30 * 60 * 1000, httpOnly: true, secure: false }
-}));
-```
-
----
-
-## 10. CRON JOBS (node-cron — already imported)
-
-```javascript
-// Daily digest at 8 PM
-cron.schedule('0 20 * * *', async () => {
-  const shops = await client.query('SELECT email, shop_name FROM retailers');
-  for (const shop of shops.rows) {
-    const stats = await getDailyStats(shop.email);
-    await sendDailyDigest(shop.email, shop.shop_name, stats);
-  }
-});
-
-// Fraud check every hour
-cron.schedule('0 * * * *', async () => {
-  const keys = await redisClient.keys('fraud:flag:*');
-  for (const key of keys) {
-    const data = JSON.parse(await redisClient.get(key));
-    if (data.count >= 3) await escalateFraudIncident(key, data);
-  }
-});
-```
-
----
-
-## 11. npm install ONE-LINER
+### 1. Install Node dependencies
 
 ```bash
-npm install express pg bcrypt express-session connect-redis redis ioredis \
-            multer axios form-data nodemailer @sendgrid/mail \
-            node-cron ws http-proxy-middleware dotenv
+npm install
 ```
+
+### 2. Install Python dependencies
 
 ```bash
 pip install fastapi uvicorn asyncpg sqlalchemy redis aioredis rapidfuzz python-dotenv
 ```
 
+### 3. Configure environment
+
+Create a `.env` file in the root:
+
+```env
+PORT=3000
+FASTAPI_URL=http://localhost:8000
+
+DB_HOST=localhost
+DB_PORT=5432
+DB_NAME=Netra
+DB_USER=postgres
+DB_PASSWORD=yourpassword
+
+REDIS_URL=redis://localhost:6379
+SESSION_SECRET=your_secret_here
+
+MAIL_USER=your@gmail.com
+MAIL_PASS=your_app_password
+
+SENDGRID_API_KEY=your_sendgrid_key
+SENDGRID_FROM=alerts@yourdomain.com
+
+APP_URL=http://localhost:3000
+```
+
+### 4. Set up the database
+
+Run the following SQL to create the required tables:
+
+```sql
+CREATE TABLE retailers (
+  id SERIAL PRIMARY KEY,
+  owner_name TEXT NOT NULL,
+  shop_name TEXT NOT NULL,
+  phone TEXT,
+  email TEXT UNIQUE NOT NULL,
+  address TEXT,
+  password_hash TEXT NOT NULL,
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE TABLE products (
+  id SERIAL PRIMARY KEY,
+  barcode TEXT UNIQUE NOT NULL,
+  name TEXT,
+  price NUMERIC,
+  quantity INT,
+  image_url TEXT
+);
+
+CREATE TABLE transactions (
+  id SERIAL PRIMARY KEY,
+  shop_id INT REFERENCES retailers(id),
+  barcode TEXT,
+  product_name TEXT,
+  status TEXT,
+  fraud_risk NUMERIC,
+  barcode_format TEXT,
+  intelligence_flags TEXT,
+  scan_count INT,
+  barcode_age_mins INT,
+  scanned_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE TABLE fraud_incidents (
+  id SERIAL PRIMARY KEY,
+  shop_id INT REFERENCES retailers(id),
+  barcode TEXT,
+  product_name TEXT,
+  risk_score NUMERIC,
+  action TEXT,
+  incident_at TIMESTAMP DEFAULT NOW()
+);
+```
+
+### 5. Build the frontend
+
+```bash
+cd client
+npx vite build
+cd ..
+```
+
+### 6. Start the FastAPI engine
+
+```bash
+cd api
+uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+```
+
+### 7. Start the Node.js gateway
+
+```bash
+node index.js
+```
+
+Open `http://localhost:3000`.
+
 ---
 
-## 12. HACKATHON PITCH FLOW (30-second demo script)
+## How a scan works
 
-1. **Register** → welcome email fires (Nodemailer)
+1. Cashier scans a barcode — the HID scanner types the string as keystrokes into the checkout terminal.
+2. A `keydown` burst listener captures characters into a buffer and fires on `Enter`.
+3. Node.js checks a Redis lock (`SET txn:lock:{shopId}:{barcode} NX EX 5`). If already locked, the duplicate is rejected with a 429.
+4. The request is proxied to FastAPI `/verify`, which queries PostgreSQL and returns product details and a base fraud risk score.
+5. Two fraud intelligence checks run in parallel — scan frequency in the past hour and barcode age (first-seen timestamp). Each adds to the risk score.
+6. If the final score exceeds 0.7, the transaction is blocked and a SendGrid fraud alert fires to the store owner.
+7. The result is logged to PostgreSQL and pushed to the checkout UI via WebSocket.
+8. The Redis lock is released.
+
+---
+
+## Fraud intelligence
+
+Beyond the basic inventory lookup, SmartRetail tracks two signals in Redis:
+
+**Scan frequency** (`scan:freq:{shopId}:{barcode}`, TTL 1h)
+- 5+ scans in an hour → +0.20 risk
+- 10+ scans in an hour → +0.40 risk (critical)
+
+**Barcode age** (`barcode:first_seen:{shopId}:{barcode}`, TTL 30d)
+- Never seen before → +0.30 risk (new barcode flag)
+- First seen less than 30 minutes ago → +0.25 risk (fresh label flag)
+
+If a barcode is blocked 3 or more times within 24 hours, an escalated incident report is sent automatically via SendGrid.
+
+---
+
+## Alerting
+
+| Event | System | Email |
+|---|---|---|
+| Retailer signs up | Nodemailer (SMTP) | Welcome + onboarding |
+| Transaction blocked | SendGrid | Real-time fraud alert |
+| Fraud flag count >= 3 in 24h | SendGrid | Escalated incident report |
+| Daily at 20:00 | SendGrid (cron) | Transaction digest |
+
+**Nodemailer** handles signup emails — simple SMTP, no dependencies on third-party delivery infrastructure.
+
+**SendGrid** handles all fraud-related mail — high-deliverability API ensures alerts reach the inbox, not the spam folder.
+
+---
+
+## YOLO / EasyOCR integration
+
+For image-based verification (home page), your ML teammate sends results to:
+
+```
+POST /api/checkout/match-verify
+{
+  "barcode":      "8901030823437",
+  "product_ocr":  "Milo 500g Nestle",
+  "barcode_ocr":  "8901030823437",
+  "yolo_label":   "Nestle Milo"
+}
+```
+
+FastAPI `/match` fuzzy-matches the YOLO label against the inventory product name using `rapidfuzz` and returns:
+
+```json
+{
+  "match": true,
+  "confidence": 87,
+  "fraud_type": null
+}
+```
+
+Possible `fraud_type` values: `"LABEL_SWAP"`, `"COUNTERFEIT"`, `null`.
+
+---
+
+## API reference
+
+### Node.js endpoints (port 3000)
+
+| Method | Path | Description |
+|---|---|---|
+| POST | `/api/register` | Register a new retailer |
+| POST | `/api/login` | Login + create Redis session |
+| GET | `/api/logout` | Destroy session |
+| GET | `/api/me` | Return current session user |
+| POST | `/api/checkout/verify` | Gate + verify a barcode scan |
+| POST | `/api/checkout/match-verify` | Image OCR + YOLO match |
+| POST | `/api/alerts/fraud` | Manually trigger fraud alert |
+| GET | `/api/inventory` | Proxy to FastAPI inventory |
+| GET | `/api/audit-log` | Proxy to FastAPI audit log |
+| GET | `/api/health` | Redis + DB health check |
+
+### FastAPI endpoints (port 8000)
+
+| Method | Path | Description |
+|---|---|---|
+| POST | `/verify` | Barcode lookup + risk score |
+| POST | `/match` | OCR + YOLO fuzzy match |
+| GET | `/inventory` | Product inventory list |
+| GET | `/audit-log` | Paginated audit log |
+
+---
+
+## Demo script (30 seconds)
+
+1. **Register** → welcome email fires via Nodemailer
 2. **Login** → session stored in Redis
-3. **Go to Checkout Terminal** → HID scanner input field is live
-4. **Scan a VALID barcode** → Redis gate fires → FastAPI checks DB → APPROVED banner + green flash
-5. **Scan a MISMATCHED barcode** → FastAPI returns fraud risk > 0.7 → BLOCKED banner + SendGrid alert fires to owner email
-6. **Show Dashboard** → audit log shows both transactions with timestamps
-7. **Show email inbox** → fraud alert email arrived in real-time
+3. **Checkout terminal** → HID scanner field is live and listening
+4. **Scan a valid barcode** → Redis gate fires → FastAPI checks DB → green APPROVED banner
+5. **Scan a mismatched barcode** → risk score > 0.7 → red BLOCKED banner + SendGrid alert fires
+6. **Dashboard** → audit log shows both transactions with timestamps and risk scores
+7. **Email inbox** → fraud alert arrived in real time
+
+---
+
+## Team
+
+Built by Team Schrödinger for Cognizant Technoverse 2026.

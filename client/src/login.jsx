@@ -61,10 +61,11 @@ export default function LoginPage({ setUser }) {
       })
       const data = await res.json()
       if (res.ok) {
-        setUser(data.user)
-        showToast('Welcome back! Redirecting…', 'success')
-        setTimeout(() => navigate('/home'), 1200)
-      } else {
+  setUser(data.user)
+  navigate('/home')
+  showToast('Welcome back! Redirecting…', 'success')
+}
+ else {
         showToast(data.message || 'Invalid credentials.', 'error')
       }
     } catch {

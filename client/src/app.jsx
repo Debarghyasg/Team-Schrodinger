@@ -24,12 +24,14 @@ function AuthGuard({ user, children }) {
 export default function App() {
   const [user, setUser] = useState(undefined)
 
-  useEffect(() => {
-    fetch('/api/me', { credentials: 'include' })
-      .then(r => r.ok ? r.json() : null)
-      .then(d => setUser(d?.user ?? null))
-      .catch(() => setUser(null))
-  }, [])
+useEffect(() => {
+  fetch('/api/me', { credentials: 'include' })
+    .then(r => r.ok ? r.json() : null)
+    .then(d => setUser(prev => prev !== undefined ? prev : (d?.user ?? null)))
+    //                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    // Don't overwrite if LoginPage already set the user
+    .catch(() => setUser(prev => prev !== undefined ? prev : null))
+}, [])
 
   return (
     <BrowserRouter>

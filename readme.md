@@ -1,4 +1,4 @@
-# SmartRetail
+# Nyatik Nayan
 
 An intelligent retail fraud detection platform built for Cognizant Technoverse 2026. SmartRetail lets store owners scan product barcodes at checkout and instantly detect counterfeit or mismatched goods using AI-powered verification, real-time fraud scoring, and automated alerting.
 

@@ -23,7 +23,6 @@ When a cashier scans a barcode, SmartRetail runs it through a multi-layer verifi
 | Real-time | WebSocket (ws) |
 | Jobs | node-cron |
 |Algorithm | YOLOv10(Class Detection), AWS Rekognition(Cloud level Recognition), RapidFuzz(Fuzzy String Matching), Decision Tree
-
 |Libraries | Python- Ultralytics (YOLOv10 Wrapper), EasyOCR (Label Text extraction), Thefuzz (Fuzzy String Comparison)
 ---
 

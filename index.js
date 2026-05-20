@@ -46,99 +46,38 @@ redisClient.connect()
     .then(() => console.log('✅ Redis connected'))
     .catch(err => { console.error('❌ Redis connection failed:', err.message); });
 
-    // ─────────────────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
 // FRAUD INTELLIGENCE — Scan Frequency + Barcode Age Tracking
 // ─────────────────────────────────────────────────────────────────────────────
 
-// Tracks how many times a barcode is scanned within 1 hour
 async function trackScanFrequency(shopId, barcode) {
     const scanKey = `scan:freq:${shopId}:${barcode}`;
-    
     try {
-        // Atomic increment
         const count = await redisClient.incr(scanKey);
-        
-        // Set 1 hour TTL only on first scan
-        if (count === 1) {
-            await redisClient.expire(scanKey, 3600);
-        }
-        
+        if (count === 1) await redisClient.expire(scanKey, 3600);
         console.log(`📊 Barcode ${barcode} scanned ${count}x in last hour`);
-        
-        if (count >= 10) {
-            return {
-                status:  'CRITICAL',
-                count,
-                riskAdd: 0.40,
-                flag:    `HIGH_FREQUENCY: ${count} scans in 1 hour`
-            };
-        }
-        if (count >= 5) {
-            return {
-                status:  'WARNING',
-                count,
-                riskAdd: 0.20,
-                flag:    `ELEVATED_FREQUENCY: ${count} scans in 1 hour`
-            };
-        }
-        
+        if (count >= 10) return { status: 'CRITICAL', count, riskAdd: 0.40, flag: `HIGH_FREQUENCY: ${count} scans in 1 hour` };
+        if (count >= 5)  return { status: 'WARNING',  count, riskAdd: 0.20, flag: `ELEVATED_FREQUENCY: ${count} scans in 1 hour` };
         return { status: 'NORMAL', count, riskAdd: 0, flag: null };
-        
     } catch (err) {
         console.warn('Scan frequency tracking error:', err.message);
         return { status: 'NORMAL', count: 0, riskAdd: 0, flag: null };
     }
 }
 
-// Tracks when a barcode was first ever seen at this shop
 async function trackBarcodeAge(shopId, barcode) {
     const ageKey = `barcode:first_seen:${shopId}:${barcode}`;
-    
     try {
         const firstSeen = await redisClient.get(ageKey);
-        
-        // Brand new barcode — never scanned before at this shop
         if (!firstSeen) {
             const now = new Date().toISOString();
-            // Store for 30 days
             await redisClient.set(ageKey, now, { EX: 2592000 });
-            
             console.log(`🆕 New barcode ${barcode} — first time seen at shop ${shopId}`);
-            
-            return {
-                status:    'NEW_BARCODE',
-                firstSeen: now,
-                ageMinutes: 0,
-                riskAdd:   0.30,
-                flag:      'NEW_BARCODE: Never scanned at this store before'
-            };
+            return { status: 'NEW_BARCODE', firstSeen: now, ageMinutes: 0, riskAdd: 0.30, flag: 'NEW_BARCODE: Never scanned at this store before' };
         }
-        
-        // Calculate age in minutes
-        const ageMinutes = Math.floor(
-            (new Date() - new Date(firstSeen)) / 60000
-        );
-        
-        // Scanned for first time less than 30 minutes ago
-        // = freshly printed fake label
-        if (ageMinutes < 30) {
-            return {
-                status:     'SUSPICIOUSLY_NEW',
-                firstSeen,
-                ageMinutes,
-                riskAdd:    0.25,
-                flag:       `FRESH_LABEL: First seen only ${ageMinutes} min ago`
-            };
-        }
-        
-        return {
-            status:     'ESTABLISHED',
-            firstSeen,
-            ageMinutes,
-            riskAdd:    0,
-            flag:       null
-        };
-        
+        const ageMinutes = Math.floor((new Date() - new Date(firstSeen)) / 60000);
+        if (ageMinutes < 30) return { status: 'SUSPICIOUSLY_NEW', firstSeen, ageMinutes, riskAdd: 0.25, flag: `FRESH_LABEL: First seen only ${ageMinutes} min ago` };
+        return { status: 'ESTABLISHED', firstSeen, ageMinutes, riskAdd: 0, flag: null };
     } catch (err) {
         console.warn('Barcode age tracking error:', err.message);
         return { status: 'UNKNOWN', riskAdd: 0, flag: null };
@@ -168,7 +107,6 @@ app.use('/uploads', express.static('uploads'));
 // ── Middleware ────────────────────────────────────────────────────────────────
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-app.use(express.static(path.join(__dirname, 'public')));
 
 // ── Redis-backed Session Store ────────────────────────────────────────────────
 app.use(session({
@@ -184,6 +122,10 @@ app.use(session({
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
 
+// ── Serve React static build ──────────────────────────────────────────────────
+// NOTE: Must come BEFORE auth guard and routes so assets (.js/.css) are served
+app.use(express.static(path.join(__dirname, 'client/dist')));
+
 // ── Auth Guard ────────────────────────────────────────────────────────────────
 const isAuth = (req, res, next) => {
     if (req.session.user) return next();
@@ -191,26 +133,16 @@ const isAuth = (req, res, next) => {
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
-// PAGE ROUTES
+// API ROUTES — must all be defined BEFORE the catch-all wildcard below
 // ─────────────────────────────────────────────────────────────────────────────
-// REMOVE these EJS renders:
-// Serve React build
-app.use(express.static(path.join(__dirname, 'client/dist')));
 
-// Let React Router handle all page routes
-app.get('*path', (req, res) => {
-    res.sendFile(path.join(__dirname, 'client/dist/index.html'));
-});
+// GET /api/me
 app.get('/api/me', (req, res) => {
-    if (req.session.user) {
-        return res.json({ user: req.session.user });
-    }
+    if (req.session.user) return res.json({ user: req.session.user });
     return res.status(401).json({ user: null });
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
-// AUTH ROUTES
-// ─────────────────────────────────────────────────────────────────────────────
+// ── AUTH ──────────────────────────────────────────────────────────────────────
 
 // POST /api/register
 app.post('/api/register', async (req, res) => {
@@ -234,9 +166,7 @@ app.post('/api/register', async (req, res) => {
         );
 
         const user = result.rows[0];
-        // Nodemailer: Welcome Email (fire-and-forget)
         sendWelcomeEmail(user.email, user.owner_name, user.shop_name).catch(console.error);
-
         console.log(`✅ Registered: ${user.email} (ID: ${user.id})`);
         return res.status(201).json({ message: 'Store registered successfully!', redirect: '/' });
 
@@ -276,28 +206,12 @@ app.post('/api/login', async (req, res) => {
     }
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
-// CHECKOUT — REDIS TRANSACTION GATE → FASTAPI PROXY
-// ─────────────────────────────────────────────────────────────────────────────
+// POST /api/logout
+app.post('/api/logout', (req, res) => {
+    req.session.destroy(() => res.json({ message: 'Logged out.' }));
+});
 
-/**
- * POST /api/checkout/verify
- *
- * Redis Gate Flow (no queue — just an atomic lock):
- *  SET txn:lock:{shopId}:{barcode} "1" NX EX 5
- *  → if null: scan already processing → 429
- *  → if "OK": proceed to FastAPI → log → release lock
- *
- * This prevents duplicate scans from HID scanners without any queue.
- */
-// ─────────────────────────────────────────────────────────────────────────────
-// POST /api/checkout/verify  — FIXED VERSION (3 syntax errors corrected)
-//
-// Fixes applied:
-//  1. try {{ → try {          (double brace removed)
-//  2. Wrapped proxy + intelligence + DB log inside try{}finally{}
-//  3. }; → });                (semicolon → closing paren for app.post)
-// ─────────────────────────────────────────────────────────────────────────────
+// ── CHECKOUT ──────────────────────────────────────────────────────────────────
 
 app.post('/api/checkout/verify', isAuth, async (req, res) => {
     const { barcode } = req.body;
@@ -307,13 +221,12 @@ app.post('/api/checkout/verify', isAuth, async (req, res) => {
     const shop    = req.session.user;
     const lockKey = `txn:lock:${shop.id}:${barcode.trim()}`;
 
-    // ── Redis Gate: atomic SET NX EX 5 ──────────────────────────────────────
     let locked;
     try {
         locked = await redisClient.set(lockKey, '1', { NX: true, EX: 5 });
     } catch (redisErr) {
         console.warn('Redis gate error (fail-open):', redisErr.message);
-        locked = 'OK'; // fail-open if Redis is temporarily down
+        locked = 'OK';
     }
 
     if (!locked) {
@@ -323,10 +236,7 @@ app.post('/api/checkout/verify', isAuth, async (req, res) => {
         });
     }
 
-    // ── FIX 2: Everything inside try{}finally{} ──────────────────────────────
     try {
-
-        // ── Proxy to FastAPI /verify ─────────────────────────────────────────
         let verifyResult;
         try {
             const faResp = await axios.post(`${FASTAPI_URL}/verify`, {
@@ -347,30 +257,21 @@ app.post('/api/checkout/verify', isAuth, async (req, res) => {
             };
         }
 
-        // ── Enhanced Fraud Intelligence ──────────────────────────────────────
-        // Run both checks in parallel — zero extra latency
         const [freqResult, ageResult] = await Promise.all([
             trackScanFrequency(shop.id, barcode.trim()),
             trackBarcodeAge(shop.id, barcode.trim())
         ]);
 
-        // Collect active flags
-        const intelligenceFlags = [
-            freqResult.flag,
-            ageResult.flag
-        ].filter(Boolean);
+        const intelligenceFlags = [freqResult.flag, ageResult.flag].filter(Boolean);
 
-        // Boost fraud risk score based on flags
         let boostedRisk = verifyResult.fraud_risk || 0;
         boostedRisk = Math.min(1.0, boostedRisk + freqResult.riskAdd + ageResult.riskAdd);
 
-        // Override status if boosted risk crosses threshold
         if (boostedRisk > 0.7 && verifyResult.status !== 'blocked') {
             verifyResult.status  = 'blocked';
             verifyResult.message = `Intelligence flags raised: ${intelligenceFlags.join(' | ')}`;
         }
 
-        // Attach intelligence data to result
         verifyResult.fraud_risk         = parseFloat(boostedRisk.toFixed(2));
         verifyResult.intelligence_flags = intelligenceFlags;
         verifyResult.scan_count         = freqResult.count;
@@ -380,8 +281,6 @@ app.post('/api/checkout/verify', isAuth, async (req, res) => {
             console.warn(`🧠 Intelligence flags for ${barcode}:`, intelligenceFlags);
         }
 
-        // ── Log to PostgreSQL ────────────────────────────────────────────────
-        // FIX 1: was try {{ — double brace removed
         try {
             await db.query(
                 `INSERT INTO transactions 
@@ -405,7 +304,6 @@ app.post('/api/checkout/verify', isAuth, async (req, res) => {
             console.error('Transaction log error:', dbErr.message);
         }
 
-        // ── Fraud Flag: Redis 24h counter ────────────────────────────────────
         if (verifyResult.status === 'blocked' && (verifyResult.fraud_risk || 0) > 0.6) {
             const fraudKey = `fraud:flag:${shop.id}:${barcode.trim()}`;
             let flagData   = { count: 0, first_seen: new Date().toISOString() };
@@ -417,7 +315,6 @@ app.post('/api/checkout/verify', isAuth, async (req, res) => {
             flagData.last_seen = new Date().toISOString();
             await redisClient.set(fraudKey, JSON.stringify(flagData), { EX: 86400 }).catch(() => {});
 
-            // SendGrid: fraud alert on every block
             sendFraudAlertEmail(shop, {
                 barcode:      barcode.trim(),
                 product_name: verifyResult.product_name,
@@ -426,7 +323,6 @@ app.post('/api/checkout/verify', isAuth, async (req, res) => {
                 action:       'TRANSACTION_BLOCKED'
             }).catch(console.error);
 
-            // SendGrid: escalate if flagged 3+ times in 24h
             if (flagData.count >= 3 && !flagData.escalated) {
                 flagData.escalated = true;
                 await redisClient.set(fraudKey, JSON.stringify(flagData), { EX: 86400 }).catch(() => {});
@@ -435,23 +331,14 @@ app.post('/api/checkout/verify', isAuth, async (req, res) => {
             }
         }
 
-        // ── WebSocket Push ───────────────────────────────────────────────────
         broadcastToShop(shop.id, { type: 'TXN_RESULT', barcode: barcode.trim(), result: verifyResult });
-
         return res.status(200).json(verifyResult);
 
     } finally {
-        // Always release the Redis lock (even on error)
         await redisClient.del(lockKey).catch(() => {});
     }
-    // FIX 3: was }; — changed to }); to correctly close app.post()
 });
 
-/**
- * POST /api/checkout/match-verify
- * Used by home.html image-upload verification + YOLO teammate integration.
- * Proxies to FastAPI /match.
- */
 app.post('/api/checkout/match-verify', isAuth, async (req, res) => {
     const { barcode, product_ocr, barcode_ocr, yolo_label } = req.body;
     try {
@@ -467,11 +354,8 @@ app.post('/api/checkout/match-verify', isAuth, async (req, res) => {
     }
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
-// ALERT ROUTE
-// ─────────────────────────────────────────────────────────────────────────────
+// ── ALERTS ────────────────────────────────────────────────────────────────────
 
-// POST /api/alerts/fraud — called directly from checkout.html JS
 app.post('/api/alerts/fraud', isAuth, async (req, res) => {
     const { barcode, product_name, risk_score, timestamp, action } = req.body;
     const shop = req.session.user;
@@ -489,24 +373,30 @@ app.post('/api/alerts/fraud', isAuth, async (req, res) => {
     }
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
-// PROXY ROUTES → FastAPI
-// ─────────────────────────────────────────────────────────────────────────────
+// ── PROXY → FastAPI ───────────────────────────────────────────────────────────
+
 app.get('/api/audit-log', isAuth, async (req, res) => {
     try { const r = await axios.get(`${FASTAPI_URL}/audit-log`, { params: { shop_id: req.session.user.id } }); res.json(r.data); }
     catch { res.json({ logs: [] }); }
 });
+
 app.get('/api/inventory', isAuth, async (req, res) => {
     try { const r = await axios.get(`${FASTAPI_URL}/inventory`, { params: { shop_id: req.session.user.id } }); res.json(r.data); }
     catch { res.json({ products: [] }); }
 });
 
-// GET /api/health — polled by checkout terminal
 app.get('/api/health', async (req, res) => {
     let redisOk = false, dbOk = false;
     try { await redisClient.ping(); redisOk = true; } catch {}
     try { await db.query('SELECT 1'); dbOk = true; } catch {}
     res.json({ redis: redisOk ? 'connected' : 'disconnected', db: dbOk ? 'connected' : 'disconnected', time: new Date().toISOString() });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CATCH-ALL — React Router (MUST be last, after all /api/* routes)
+// ─────────────────────────────────────────────────────────────────────────────
+app.get('*path', (req, res) => {
+    res.sendFile(path.join(__dirname, 'client/dist/index.html'));
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -591,7 +481,6 @@ async function sendFraudIncidentReport(shop, barcode, verifyResult, flagData) {
 // CRON JOBS
 // ─────────────────────────────────────────────────────────────────────────────
 
-// Daily digest — 8 PM
 cron.schedule('0 20 * * *', async () => {
     console.log('📊 Daily digest cron running…');
     try {
@@ -626,7 +515,6 @@ cron.schedule('0 20 * * *', async () => {
     } catch (err) { console.error('Digest cron error:', err.message); }
 });
 
-// Hourly fraud flag escalation
 cron.schedule('0 * * * *', async () => {
     try {
         const keys = await redisClient.keys('fraud:flag:*');

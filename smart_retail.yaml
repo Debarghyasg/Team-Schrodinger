@@ -1,0 +1,7 @@
+names:
+- product
+- barcode
+nc: 2
+path: /kaggle/working/smart_retail_data
+train: train/images
+val: val/images

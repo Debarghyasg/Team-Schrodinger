@@ -1,6 +1,117 @@
 import { useState, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 
+/* ─── Mascot Intro Animation ────────────────────────────────────────── */
+function MascotIntro() {
+  const [phase, setPhase] = useState('enter') // enter → zoom → exit → done
+
+  useEffect(() => {
+    // Phase timeline: slide-up(0.6s) → zoom loop(1.8s) → slide-down(0.6s) = 3s total
+    const t1 = setTimeout(() => setPhase('zoom'),  600)
+    const t2 = setTimeout(() => setPhase('exit'),  2400)
+    const t3 = setTimeout(() => setPhase('done'),  3000)
+    return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3) }
+  }, [])
+
+  if (phase === 'done') return null
+
+  return (
+    <div style={{
+      position: 'fixed', inset: 0, zIndex: 9999,
+      display: 'flex', alignItems: 'flex-end', justifyContent: 'center',
+      pointerEvents: 'none', overflow: 'hidden',
+    }}>
+      {/* purple glow on floor */}
+      <div style={{
+        position: 'absolute', bottom: 0, left: '50%', transform: 'translateX(-50%)',
+        width: 340, height: 120,
+        background: 'radial-gradient(ellipse, rgba(124,58,237,.32) 0%, transparent 70%)',
+        filter: 'blur(12px)',
+        opacity: phase === 'zoom' ? 1 : 0,
+        transition: 'opacity 0.5s ease',
+      }} />
+
+      {/* mascot wrapper — slides up / down */}
+      <div style={{
+        position: 'relative',
+        width: 240, height: 280, marginBottom: -8,
+        transform: phase === 'enter'
+          ? 'translateY(110%)'
+          : phase === 'exit'
+          ? 'translateY(110%)'
+          : 'translateY(0)',
+        transition: phase === 'enter'
+          ? 'transform 0.6s cubic-bezier(0.34,1.56,0.64,1)'
+          : phase === 'exit'
+          ? 'transform 0.55s cubic-bezier(0.55,0,1,0.45)'
+          : 'none',
+        animation: phase === 'zoom' ? 'mascotBob 1s ease-in-out infinite' : 'none',
+      }}>
+
+        {/* pulsing lens ring around the magnifying glass area */}
+        {phase === 'zoom' && (
+          <>
+            <div style={{
+              position: 'absolute', top: 68, left: 4,
+              width: 76, height: 76, borderRadius: '50%',
+              border: '2px solid rgba(167,139,250,.75)',
+              animation: 'lensRing 1s ease-in-out infinite',
+              pointerEvents: 'none',
+            }} />
+            <div style={{
+              position: 'absolute', top: 78, left: 14,
+              width: 56, height: 56, borderRadius: '50%',
+              border: '1px solid rgba(167,139,250,.35)',
+              animation: 'lensRing 1s ease-in-out 0.15s infinite',
+              pointerEvents: 'none',
+            }} />
+          </>
+        )}
+
+        {/* the mascot image */}
+        <img
+          src="/mascot.png"
+          alt="NyatikNayan mascot"
+          style={{
+            width: '100%', height: '100%',
+            objectFit: 'contain',
+            objectPosition: 'bottom',
+            filter: 'drop-shadow(0 0 32px rgba(124,58,237,.65)) drop-shadow(0 10px 20px rgba(0,0,0,.9))',
+            animation: phase === 'zoom' ? 'lensZoom 1s ease-in-out infinite' : 'none',
+          }}
+        />
+
+        {/* speech bubble — pops in during zoom phase */}
+        {phase === 'zoom' && (
+          <div style={{
+            position: 'absolute', top: -14, right: -38,
+            background: 'rgba(8,3,18,.96)',
+            border: '1px solid rgba(124,58,237,.55)',
+            borderRadius: '12px 12px 12px 3px',
+            padding: '7px 13px',
+            fontSize: 11, fontWeight: 700,
+            color: '#a78bfa', fontFamily: 'monospace',
+            letterSpacing: '1.2px', whiteSpace: 'nowrap',
+            boxShadow: '0 0 22px rgba(124,58,237,.4), inset 0 0 0 1px rgba(255,255,255,.04)',
+            animation: 'bubblePop 0.35s cubic-bezier(0.34,1.56,0.64,1) both',
+          }}>
+            Let's verify! 🔍
+            {/* little tail */}
+            <div style={{
+              position: 'absolute', bottom: -6, left: 10,
+              width: 10, height: 10,
+              background: 'rgba(8,3,18,.96)',
+              border: '1px solid rgba(124,58,237,.55)',
+              borderTop: 'none', borderRight: 'none',
+              transform: 'rotate(-45deg)',
+            }} />
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 /* ─── 3-D Floating Shape SVGs (video-matched) ─────────────────────── */
 function Shape3D({ style, type = 'cube' }) {
   if (type === 'cube')
@@ -192,7 +303,6 @@ function StatsTicker() {
           </div>
         ))}
       </div>
-      {/* fade edges */}
       <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 80, background: 'linear-gradient(to right, #000, transparent)', pointerEvents: 'none' }} />
       <div style={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: 80, background: 'linear-gradient(to left, #000, transparent)', pointerEvents: 'none' }} />
     </div>
@@ -209,7 +319,6 @@ function DropZone({ type, analyzing, imageB64, label, icon, onFile, onCamera, on
 
   return (
     <BrowserCard glowColor={glowC} urlLabel={isProd ? 'smartretail.ai/product-ocr' : 'smartretail.ai/barcode-decode'}>
-      {/* header */}
       <div style={{
         padding: '13px 18px', display: 'flex', alignItems: 'center',
         justifyContent: 'space-between', borderBottom: '1px solid rgba(109,40,217,.14)',
@@ -237,7 +346,6 @@ function DropZone({ type, analyzing, imageB64, label, icon, onFile, onCamera, on
         )}
       </div>
 
-      {/* drop area */}
       <div
         onClick={() => !imageB64 && fileRef.current?.click()}
         onDragOver={e => { e.preventDefault(); setDrag(true) }}
@@ -270,7 +378,6 @@ function DropZone({ type, analyzing, imageB64, label, icon, onFile, onCamera, on
               </div>
             </>
         }
-        {/* animated scan line */}
         {analyzing && (
           <div style={{
             position: 'absolute', left: 0, right: 0, height: 2,
@@ -279,7 +386,6 @@ function DropZone({ type, analyzing, imageB64, label, icon, onFile, onCamera, on
             animation: 'scanLine 1.6s ease-in-out infinite',
           }} />
         )}
-        {/* corner brackets */}
         {!imageB64 && <>
           {[['tl', 0, 0], ['tr', 0, 'auto'], ['bl', 'auto', 0], ['br', 'auto', 'auto']].map(([id, t, r]) => (
             <svg key={id} width="16" height="16" viewBox="0 0 16 16" style={{
@@ -297,7 +403,6 @@ function DropZone({ type, analyzing, imageB64, label, icon, onFile, onCamera, on
         </>}
       </div>
 
-      {/* OCR output */}
       {imageB64 && ocrText && (
         <div style={{
           margin: '12px 14px 0', padding: '10px 12px', borderRadius: 9,
@@ -315,7 +420,6 @@ function DropZone({ type, analyzing, imageB64, label, icon, onFile, onCamera, on
         </div>
       )}
 
-      {/* actions */}
       <div style={{ padding: '12px 14px 14px', display: 'flex', gap: 8 }}>
         <button onClick={() => fileRef.current?.click()} style={{
           flex: 1, padding: '8px 10px', borderRadius: 8, cursor: 'pointer', fontSize: 12, fontWeight: 600,
@@ -559,30 +663,50 @@ export default function HomePage({ user, setUser }) {
           100% { background-position:  200% center }
         }
 
+        /* ── Mascot animations ── */
+        @keyframes mascotBob {
+          0%,100% { transform: translateY(0) }
+          50%     { transform: translateY(-10px) }
+        }
+        @keyframes lensZoom {
+          0%,100% { transform: scale(1) }
+          40%     { transform: scale(1.06) }
+          70%     { transform: scale(0.97) }
+        }
+        @keyframes lensRing {
+          0%   { transform: scale(0.7); opacity: 0.9 }
+          100% { transform: scale(1.7); opacity: 0   }
+        }
+        @keyframes bubblePop {
+          0%   { transform: scale(0) translateY(6px); opacity: 0 }
+          70%  { transform: scale(1.08) translateY(-2px); opacity: 1 }
+          100% { transform: scale(1) translateY(0); opacity: 1 }
+        }
+
         .nav-btn:hover { color: #a78bfa !important; border-color: rgba(167,139,250,.38) !important; }
         .upload-btn:hover { background: rgba(109,40,217,.2) !important; }
         .match-btn:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 10px 48px rgba(124,58,237,.55) !important; }
         .match-btn:active:not(:disabled) { transform: translateY(0); }
       `}</style>
 
-      {/* ── Background layers (video-matched) ── */}
+      {/* ── Mascot intro (renders on top of everything for 3s) ── */}
+      <MascotIntro />
+
+      {/* ── Background layers ── */}
       <div style={{ position: 'fixed', inset: 0, background: '#000', zIndex: 0 }} />
-      {/* radial glow top-center */}
       <div style={{ position: 'fixed', inset: 0, background: 'radial-gradient(ellipse 75% 55% at 50% -5%, rgba(109,40,217,.2) 0%, transparent 70%)', zIndex: 0, pointerEvents: 'none' }} />
-      {/* faint vignette bottom */}
       <div style={{ position: 'fixed', inset: 0, background: 'radial-gradient(ellipse 90% 50% at 50% 120%, rgba(76,29,149,.12) 0%, transparent 60%)', zIndex: 0, pointerEvents: 'none' }} />
-      {/* horizontal rule glow */}
       <div style={{ position: 'fixed', top: 60, left: 0, right: 0, height: 1, background: 'linear-gradient(to right, transparent, rgba(109,40,217,.25), transparent)', zIndex: 1, pointerEvents: 'none' }} />
 
       <ParticleField />
 
-      {/* ── Floating 3D shapes (video-matched corners) ── */}
-      <Shape3D type="cube"     style={{ position:'fixed', top:28,  left:-14,  width:170, height:170, opacity:.9, animation:'floatA 8s ease-in-out infinite',  zIndex:0, filter:'drop-shadow(0 0 28px rgba(124,58,237,.55))' }} />
-      <Shape3D type="bolt"     style={{ position:'fixed', top:10,  right:22,  width:150, height:150, opacity:.75, animation:'floatB 10s ease-in-out infinite', zIndex:0, filter:'drop-shadow(0 0 22px rgba(167,139,250,.45))' }} />
-      <Shape3D type="cube"     style={{ position:'fixed', bottom:50, left:30,  width:140, height:140, opacity:.68, animation:'floatC 12s ease-in-out infinite', zIndex:0, filter:'drop-shadow(0 0 20px rgba(109,40,217,.5))',  transform:'rotate(28deg)' }} />
-      <Shape3D type="ring"     style={{ position:'fixed', bottom:65, right:14, width:160, height:160, opacity:.62, animation:'floatD 9s ease-in-out infinite',  zIndex:0, filter:'drop-shadow(0 0 24px rgba(124,58,237,.42))' }} />
-      <Shape3D type="bag"      style={{ position:'fixed', top:'38%', left:8,   width:90,  height:90,  opacity:.45, animation:'floatE 14s ease-in-out infinite', zIndex:0, filter:'drop-shadow(0 0 16px rgba(124,58,237,.35))' }} />
-      <Shape3D type="star"     style={{ position:'fixed', top:'45%', right:10, width:80,  height:80,  opacity:.4,  animation:'floatA 11s ease-in-out 2s infinite', zIndex:0, filter:'drop-shadow(0 0 14px rgba(167,139,250,.3))' }} />
+      {/* ── Floating 3D shapes ── */}
+      <Shape3D type="cube"  style={{ position:'fixed', top:28,  left:-14,  width:170, height:170, opacity:.9,  animation:'floatA 8s ease-in-out infinite',      zIndex:0, filter:'drop-shadow(0 0 28px rgba(124,58,237,.55))' }} />
+      <Shape3D type="bolt"  style={{ position:'fixed', top:10,  right:22,  width:150, height:150, opacity:.75, animation:'floatB 10s ease-in-out infinite',     zIndex:0, filter:'drop-shadow(0 0 22px rgba(167,139,250,.45))' }} />
+      <Shape3D type="cube"  style={{ position:'fixed', bottom:50, left:30, width:140, height:140, opacity:.68, animation:'floatC 12s ease-in-out infinite',     zIndex:0, filter:'drop-shadow(0 0 20px rgba(109,40,217,.5))',  transform:'rotate(28deg)' }} />
+      <Shape3D type="ring"  style={{ position:'fixed', bottom:65, right:14, width:160, height:160, opacity:.62, animation:'floatD 9s ease-in-out infinite',    zIndex:0, filter:'drop-shadow(0 0 24px rgba(124,58,237,.42))' }} />
+      <Shape3D type="bag"   style={{ position:'fixed', top:'38%', left:8,  width:90,  height:90,  opacity:.45, animation:'floatE 14s ease-in-out infinite',    zIndex:0, filter:'drop-shadow(0 0 16px rgba(124,58,237,.35))' }} />
+      <Shape3D type="star"  style={{ position:'fixed', top:'45%', right:10, width:80, height:80,  opacity:.4,  animation:'floatA 11s ease-in-out 2s infinite', zIndex:0, filter:'drop-shadow(0 0 14px rgba(167,139,250,.3))' }} />
 
       <div style={{ position: 'relative', zIndex: 1, minHeight: '100vh', fontFamily: "'Sora', sans-serif" }}>
 
@@ -625,7 +749,6 @@ export default function HomePage({ user, setUser }) {
 
         {/* ── Hero ── */}
         <div style={{ textAlign: 'center', padding: '68px 24px 44px', animation: 'heroIn .85s ease both' }}>
-          {/* animated pill badge */}
           <div style={{
             display: 'inline-flex', alignItems: 'center', gap: 7,
             padding: '5px 16px', borderRadius: 22, marginBottom: 30,
@@ -642,7 +765,7 @@ export default function HomePage({ user, setUser }) {
 
           <h1 style={{
             fontSize: 'clamp(38px,6.5vw,76px)', fontWeight: 800, lineHeight: 1.04,
-            letterSpacing: '-2.5px', color: '#fff', marginBottom: 18,
+            letterSpacing: '-2.5px', color: '#fff', marginBottom: 18, marginTop: 50,
           }}>
             Scan, Match &{' '}
             <span style={{ color: '#a78bfa' }}>Verify</span>
@@ -652,7 +775,6 @@ export default function HomePage({ user, setUser }) {
             Upload product and barcode images. Our OCR engine extracts text, cross-references your inventory, and delivers an instant match verdict.
           </p>
 
-          {/* trusted-by logos strip */}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 20, marginBottom: 8 }}>
             <span style={{ fontSize: 10, color: '#3b1f6a', letterSpacing: '1.5px', textTransform: 'uppercase', fontFamily: 'monospace' }}>Trusted by retailers on</span>
             {['Zomato', 'Blinkit', 'Zepto', 'Amazon'].map(b => (
@@ -660,13 +782,12 @@ export default function HomePage({ user, setUser }) {
             ))}
           </div>
 
-          {/* dotted connector */}
           <div style={{ display: 'flex', justifyContent: 'center', marginTop: 38 }}>
             <svg width="1" height="50" viewBox="0 0 1 50"><line x1=".5" y1="0" x2=".5" y2="50" stroke="rgba(109,40,217,.4)" strokeWidth="1" strokeDasharray="4 5" /></svg>
           </div>
         </div>
 
-        {/* ── Stats ticker (retail context) ── */}
+        {/* ── Stats ticker ── */}
         <StatsTicker />
 
         {/* ── Scan Arena ── */}
@@ -682,7 +803,6 @@ export default function HomePage({ user, setUser }) {
             fileRef={productFileRef}
             product={product} barcode={barcode} />
 
-          {/* VS divider */}
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 10, paddingTop: 86 }}>
             <svg width="1" height="54" viewBox="0 0 1 54"><line x1=".5" y1="0" x2=".5" y2="54" stroke="rgba(109,40,217,.32)" strokeWidth="1" strokeDasharray="4 5" /></svg>
             <div style={{
@@ -731,7 +851,6 @@ export default function HomePage({ user, setUser }) {
         {result && (
           <div style={{ maxWidth: 1120, margin: '0 auto', width: '100%', padding: '0 32px 64px', animation: 'resultIn .6s ease both' }}>
             <BrowserCard glowColor={rg[result.type]} urlLabel="smartretail.ai/result">
-              {/* result header */}
               <div style={{
                 padding: '24px 28px', display: 'flex', alignItems: 'center', gap: 20,
                 borderBottom: '1px solid rgba(255,255,255,.045)',
@@ -750,14 +869,12 @@ export default function HomePage({ user, setUser }) {
                   <div style={{ fontSize: 28, fontWeight: 800, letterSpacing: '-.6px', color: rc[result.type] }}>{result.verdict}</div>
                   <div style={{ fontSize: 13, color: 'rgba(255,255,255,.38)', marginTop: 5, lineHeight: 1.55 }}>{result.sub}</div>
                 </div>
-                {/* confidence ring */}
                 <div style={{ textAlign: 'right', flexShrink: 0 }}>
                   <div style={{ fontSize: 10, color: 'rgba(255,255,255,.28)', letterSpacing: '1.2px', textTransform: 'uppercase', marginBottom: 5, fontFamily: 'monospace' }}>Confidence</div>
                   <div style={{ fontSize: 40, fontWeight: 800, color: rc[result.type], fontFamily: 'monospace', lineHeight: 1 }}>{result.confidence}%</div>
                 </div>
               </div>
 
-              {/* details grid */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr' }}>
                 {[
                   {

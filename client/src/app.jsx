@@ -25,10 +25,16 @@ export default function App() {
   const [user, setUser] = useState(undefined)
 
   useEffect(() => {
-    fetch('/api/me', { credentials: 'include' })
+    // Abort the fetch if it takes longer than 5 seconds,
+    // so the app never stays stuck on "Loading…" forever.
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), 5000)
+
+    fetch('/api/me', { credentials: 'include', signal: controller.signal })
       .then(r => r.ok ? r.json() : null)
       .then(d => setUser(d?.user ?? null))
-      .catch(() => setUser(null))
+      .catch(() => setUser(null))   // abort, network error, or 4xx all resolve to null
+      .finally(() => clearTimeout(timeout))
   }, [])
 
   return (

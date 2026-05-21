@@ -5,8 +5,12 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "start": "node index.js",
-    "build": "vite build --config client/vite.config.js",
-    "dev": "vite --config client/vite.config.js"
+"build": "cd client && npx vite build",
+"dev": "cd client && npx vite",
+  "preview": "vite preview"
+
+
+
   },
   "author": "Team Schrodinger",
   "license": "ISC",
@@ -29,6 +33,7 @@
     "multer": "^2.1.1",
     "node-cron": "^4.2.1",
     "nodemailer": "^8.0.5",
+    "nodemon": "^3.1.14",
     "pg": "^8.20.0",
     "react": "^19.2.5",
     "react-dom": "^19.2.5",

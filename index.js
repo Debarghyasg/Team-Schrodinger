@@ -358,11 +358,34 @@ app.post('/api/checkout/match-verify', isAuth, async (req, res) => {
 
 // ── POST /api/checkout/pay ────────────────────────────────────────────────────
 // Finalise the cart: decrement stock for each item in a single SQL transaction,
-// collect any product whose new stock is < 5, and email the retailer once.
+// collect any product whose new stock is < threshold, and email the retailer
+// once (deduped per shop+barcode per 24h via Redis to avoid notification spam).
 //
 // Request body: { items: [{ barcode: string, qty: number }, ...] }
 // Response:    { ok: true, lowStock: [{ product_name, barcode, quantity }, ...] }
-const LOW_STOCK_THRESHOLD = 5;
+const LOW_STOCK_THRESHOLD = parseInt(process.env.LOW_STOCK_THRESHOLD) || 5;
+const LOW_STOCK_NOTIFY_TTL = 24 * 60 * 60; // 24h dedup window
+
+// Filter items that haven't been notified about in the last 24h.
+// Sets the dedup keys in Redis for the items we WILL notify about.
+async function dedupLowStockNotifications(shopId, lowStockItems) {
+    if (lowStockItems.length === 0) return [];
+    const fresh = [];
+    for (const item of lowStockItems) {
+        const key = `lowstock:notified:${shopId}:${item.barcode}`;
+        try {
+            // SET ... NX EX 86400 → only succeeds if no notification was sent recently
+            const set = await redisClient.set(key, new Date().toISOString(),
+                { NX: true, EX: LOW_STOCK_NOTIFY_TTL });
+            if (set) fresh.push(item);
+        } catch (err) {
+            // Redis down? Fail open — better to send the email than miss it.
+            console.warn('Low-stock dedup error (fail-open):', err.message);
+            fresh.push(item);
+        }
+    }
+    return fresh;
+}
 
 app.post('/api/checkout/pay', isAuth, async (req, res) => {
     const shop  = req.session.user;
@@ -433,9 +456,14 @@ app.post('/api/checkout/pay', isAuth, async (req, res) => {
         return res.status(500).json({ ok: false, message: 'Sale failed. Please retry.' });
     }
 
+    // Dedup against Redis: if we've already emailed about this barcode within
+    // the last 24h, skip it. Prevents one slow-moving SKU from spamming the
+    // retailer every time it's sold.
+    const toNotify = await dedupLowStockNotifications(shop.id, lowStock);
+
     // Fire-and-forget low-stock email; never block the checkout response on it.
-    if (lowStock.length > 0) {
-        sendLowStockEmail(shop, lowStock)
+    if (toNotify.length > 0) {
+        sendLowStockEmail(shop, toNotify)
             .catch(err => console.error('Low-stock email error:', err.message));
     }
 
@@ -462,6 +490,25 @@ app.post('/api/alerts/fraud', isAuth, async (req, res) => {
 });
 
 // ── PROXY → FastAPI ───────────────────────────────────────────────────────────
+
+// GET /api/inventory/low-stock — list every product currently below threshold
+// for the logged-in shop. Used by the UI to show a low-stock dashboard banner.
+app.get('/api/inventory/low-stock', isAuth, async (req, res) => {
+    const shop = req.session.user;
+    try {
+        const r = await db.query(
+            `SELECT product_name, barcode, quantity, price
+               FROM products
+              WHERE shop_id = $1 AND quantity < $2
+              ORDER BY quantity ASC, product_name ASC`,
+            [shop.id, LOW_STOCK_THRESHOLD]
+        );
+        res.json({ threshold: LOW_STOCK_THRESHOLD, count: r.rowCount, items: r.rows });
+    } catch (err) {
+        console.error('Low-stock query error:', err.message);
+        res.status(500).json({ threshold: LOW_STOCK_THRESHOLD, count: 0, items: [] });
+    }
+});
 
 app.get('/api/audit-log', isAuth, async (req, res) => {
     try { const r = await axios.get(`${FASTAPI_URL}/audit-log`, { params: { shop_id: req.session.user.id } }); res.json(r.data); }
@@ -639,6 +686,42 @@ cron.schedule('0 20 * * *', async () => {
             }).catch(e => console.error('Digest email error:', e.message));
         }
     } catch (err) { console.error('Digest cron error:', err.message); }
+});
+
+// ── Daily 09:00 IST low-stock sweep ──────────────────────────────────────────
+// Catches products that are silently below threshold (e.g., quantity=2 but
+// haven't sold all day, so the per-sale path never fired). Respects the same
+// Redis dedup keys, so a retailer never gets two emails for the same SKU
+// within a 24h window.
+cron.schedule('0 9 * * *', async () => {
+    console.log('📦 Low-stock sweep cron running…');
+    try {
+        const shops = await db.query('SELECT id, owner_name, shop_name, email FROM retailers');
+        for (const shopRow of shops.rows) {
+            const lowQ = await db.query(
+                `SELECT product_name, barcode, quantity
+                   FROM products
+                  WHERE shop_id = $1 AND quantity < $2
+                  ORDER BY quantity ASC`,
+                [shopRow.id, LOW_STOCK_THRESHOLD]
+            );
+            if (lowQ.rowCount === 0) continue;
+
+            const shop = {
+                id:         shopRow.id,
+                name:       shopRow.owner_name,
+                shop_name:  shopRow.shop_name,
+                email:      shopRow.email,
+            };
+            const fresh = await dedupLowStockNotifications(shop.id, lowQ.rows);
+            if (fresh.length === 0) continue;
+
+            sendLowStockEmail(shop, fresh)
+                .catch(err => console.error(`Low-stock sweep email error (${shop.email}):`, err.message));
+        }
+    } catch (err) {
+        console.error('Low-stock sweep cron error:', err.message);
+    }
 });
 
 cron.schedule('0 * * * *', async () => {

@@ -84,16 +84,40 @@ def compute_fraud_risk(db_product: Optional[dict], yolo_label: str, ocr_text: st
     """
     Rule-based fraud risk scorer (0.0 – 1.0).
     YOLO label + OCR text are fuzzy-matched against the DB product name.
+    Uses partial_ratio for YOLO (class names are often abbreviated)
+    and token_set_ratio for OCR (text may contain extra noise).
     """
     if db_product is None:
         return 0.95  # not in inventory → very high risk
 
-    db_name    = db_product.get("product_name", "")
-    yolo_score = fuzz.token_sort_ratio(yolo_label.lower(), db_name.lower()) / 100 if yolo_label else 0.5
-    ocr_score  = fuzz.partial_ratio(ocr_text.lower(), db_name.lower()) / 100       if ocr_text  else 0.5
+    db_name = db_product.get("product_name", "")
 
-    match_score = (yolo_score * 0.6 + ocr_score * 0.4)
-    return round(1.0 - match_score, 2)
+    # YOLO class labels are short/abbreviated — use partial_ratio for leniency
+    if yolo_label:
+        yolo_score = max(
+            fuzz.partial_ratio(yolo_label.lower(), db_name.lower()),
+            fuzz.token_set_ratio(yolo_label.lower(), db_name.lower())
+        ) / 100
+    else:
+        yolo_score = 0.5  # no YOLO data — neutral
+
+    # OCR text from product image — use token_set_ratio (robust to extra words)
+    if ocr_text and ocr_text.strip():
+        ocr_score = max(
+            fuzz.partial_ratio(ocr_text.lower(), db_name.lower()),
+            fuzz.token_set_ratio(ocr_text.lower(), db_name.lower())
+        ) / 100
+    else:
+        ocr_score = 0.5  # no OCR data — neutral
+
+    # If YOLO is not available, rely more on OCR; if both present, weight YOLO less
+    # since class labels are unreliable compared to OCR text
+    if yolo_label:
+        match_score = (yolo_score * 0.4 + ocr_score * 0.6)
+    else:
+        match_score = ocr_score
+
+    return round(max(0.0, 1.0 - match_score), 2)
 
 
 def run_yolo(image_b64: str) -> list[str]:
@@ -243,12 +267,12 @@ async def match_verify(req: MatchRequest):
     fraud_type = None
     if fraud_risk > 0.7 and yolo_label:
         fraud_type = "LABEL_SWAP" if yolo_conf < 30 else "PARTIAL_MISMATCH"
-    elif fraud_risk > 0.5:
+    elif fraud_risk > 0.55:
         fraud_type = "LOW_CONFIDENCE"
 
     return {
         "found":          True,
-        "match":          fraud_risk < 0.4,
+        "match":          fraud_risk <= 0.5,
         "confidence":     max(0, 100 - int(fraud_risk * 100)),
         "fraud_type":     fraud_type,
         "fraud_risk":     fraud_risk,

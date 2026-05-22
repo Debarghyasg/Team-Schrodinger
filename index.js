@@ -356,6 +356,92 @@ app.post('/api/checkout/match-verify', isAuth, async (req, res) => {
     }
 });
 
+// ── POST /api/checkout/pay ────────────────────────────────────────────────────
+// Finalise the cart: decrement stock for each item in a single SQL transaction,
+// collect any product whose new stock is < 5, and email the retailer once.
+//
+// Request body: { items: [{ barcode: string, qty: number }, ...] }
+// Response:    { ok: true, lowStock: [{ product_name, barcode, quantity }, ...] }
+const LOW_STOCK_THRESHOLD = 5;
+
+app.post('/api/checkout/pay', isAuth, async (req, res) => {
+    const shop  = req.session.user;
+    const items = Array.isArray(req.body?.items) ? req.body.items : [];
+
+    if (items.length === 0)
+        return res.status(400).json({ ok: false, message: 'Cart is empty.' });
+
+    const cleanItems = items
+        .map(i => ({ barcode: String(i.barcode || '').trim(), qty: Math.max(1, parseInt(i.qty) || 1) }))
+        .filter(i => i.barcode.length >= 4);
+
+    if (cleanItems.length === 0)
+        return res.status(400).json({ ok: false, message: 'No valid items to pay for.' });
+
+    const lowStock      = [];     // products whose new quantity < threshold
+    const insufficient  = [];     // requested qty exceeded available
+    const notFound      = [];     // barcode not in this shop's inventory
+
+    try {
+        await db.query('BEGIN');
+
+        for (const { barcode, qty } of cleanItems) {
+            // Atomic decrement: only succeed if enough stock is available.
+            const r = await db.query(
+                `UPDATE products
+                    SET quantity = quantity - $1
+                  WHERE barcode = $2
+                    AND shop_id = $3
+                    AND quantity >= $1
+                  RETURNING product_name, quantity`,
+                [qty, barcode, shop.id]
+            );
+
+            if (r.rowCount === 0) {
+                // Either not in inventory or insufficient stock — figure out which.
+                const probe = await db.query(
+                    'SELECT product_name, quantity FROM products WHERE barcode=$1 AND shop_id=$2',
+                    [barcode, shop.id]
+                );
+                if (probe.rowCount === 0) notFound.push({ barcode });
+                else                       insufficient.push({ barcode, available: probe.rows[0].quantity, requested: qty });
+                continue;
+            }
+
+            const { product_name, quantity } = r.rows[0];
+            if (quantity < LOW_STOCK_THRESHOLD) {
+                lowStock.push({ product_name, barcode, quantity });
+            }
+        }
+
+        // Roll back the whole sale if anything was missing — keeps DB consistent.
+        if (notFound.length > 0 || insufficient.length > 0) {
+            await db.query('ROLLBACK');
+            return res.status(409).json({
+                ok: false,
+                message: 'Some items could not be sold.',
+                notFound,
+                insufficient,
+            });
+        }
+
+        await db.query('COMMIT');
+        console.log(`💰 Sale committed for shop ${shop.id}: ${cleanItems.length} item(s)`);
+    } catch (err) {
+        try { await db.query('ROLLBACK'); } catch {}
+        console.error('❌ Pay transaction failed:', err.message);
+        return res.status(500).json({ ok: false, message: 'Sale failed. Please retry.' });
+    }
+
+    // Fire-and-forget low-stock email; never block the checkout response on it.
+    if (lowStock.length > 0) {
+        sendLowStockEmail(shop, lowStock)
+            .catch(err => console.error('Low-stock email error:', err.message));
+    }
+
+    return res.status(200).json({ ok: true, lowStock });
+});
+
 // ── ALERTS ────────────────────────────────────────────────────────────────────
 
 app.post('/api/alerts/fraud', isAuth, async (req, res) => {
@@ -458,6 +544,44 @@ async function sendFraudAlertEmail(shop, { barcode, product_name, risk_score, ti
         </div>`,
     });
     console.log(`🚨 SendGrid fraud alert → ${shop.email}`);
+}
+
+async function sendLowStockEmail(shop, lowStockItems) {
+    const rows = lowStockItems.map(it => `
+        <tr>
+          <td style="padding:12px 16px;border-bottom:1px solid #2a1a07">${it.product_name}</td>
+          <td style="padding:12px 16px;font-family:monospace;letter-spacing:1.5px;color:#cbd5e1;border-bottom:1px solid #2a1a07">${it.barcode}</td>
+          <td style="padding:12px 16px;color:${it.quantity === 0 ? '#ff4455' : '#f5a623'};font-weight:700;text-align:right;border-bottom:1px solid #2a1a07">${it.quantity}</td>
+        </tr>`).join('');
+
+    await sgMail.send({
+        to:      shop.email,
+        from:    process.env.SENDGRID_FROM || 'alerts@smartretail.com',
+        subject: `⚠️ Low Stock Warning — ${lowStockItems.length} item${lowStockItems.length > 1 ? 's' : ''} at ${shop.shop_name}`,
+        html: `
+        <div style="font-family:sans-serif;max-width:560px;margin:0 auto;background:#0d0a05;color:#e2e8f0;padding:32px;border-radius:16px;border:1px solid #4a3a0d">
+          <h1 style="color:#f5a623;font-size:22px;margin:0 0 8px">⚠️ Low Stock Warning</h1>
+          <p style="color:#94a3b8;margin:0 0 20px;font-size:13px;line-height:1.6">
+            Hi ${shop.name || shop.owner_name || 'there'}, after the latest sale at <strong>${shop.shop_name}</strong>
+            the following item${lowStockItems.length > 1 ? 's are' : ' is'} below the
+            <strong>${LOW_STOCK_THRESHOLD}-unit</strong> reorder threshold. Time to restock.
+          </p>
+          <table style="width:100%;border-collapse:collapse;background:#1a1407;border-radius:10px;overflow:hidden;margin-top:8px">
+            <thead>
+              <tr style="background:#2a1f0a">
+                <th style="padding:12px 16px;text-align:left;color:#94a3b8;font-size:11px;letter-spacing:1.5px;text-transform:uppercase;font-weight:700">Product</th>
+                <th style="padding:12px 16px;text-align:left;color:#94a3b8;font-size:11px;letter-spacing:1.5px;text-transform:uppercase;font-weight:700">Barcode</th>
+                <th style="padding:12px 16px;text-align:right;color:#94a3b8;font-size:11px;letter-spacing:1.5px;text-transform:uppercase;font-weight:700">Stock Left</th>
+              </tr>
+            </thead>
+            <tbody>${rows}</tbody>
+          </table>
+          <p style="margin-top:24px;font-size:12px;color:#64748b">
+            Threshold: ${LOW_STOCK_THRESHOLD} units · Sent automatically by SmartRetail · ${new Date().toLocaleString('en-IN')}
+          </p>
+        </div>`,
+    });
+    console.log(`📦 Low-stock email → ${shop.email} (${lowStockItems.length} item${lowStockItems.length > 1 ? 's' : ''})`);
 }
 
 async function sendFraudIncidentReport(shop, barcode, verifyResult, flagData) {

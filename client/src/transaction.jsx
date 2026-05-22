@@ -331,6 +331,7 @@ export default function TransactionPage({ user, setUser }) {
 
   const [cart, setCart]           = useState([])
   const [scanning, setScanning]   = useState(false)
+  const [scannerOpen, setScannerOpen] = useState(false)   // gates ScanCapture; only visible after "Add Another Item"
   const [toast, setToast]         = useState({ msg:'', type:'', show:false })
   const [paid, setPaid]           = useState(false)
   const [fraudCount, setFraudCount] = useState(0)
@@ -405,6 +406,7 @@ export default function TransactionPage({ user, setUser }) {
     }
 
     addToCart(item)
+    setScannerOpen(false)   // collapse scanner; user must click "Add Another Item" to scan next
   }, [])
 
   function handleQtyChange(id, delta) {
@@ -531,11 +533,50 @@ export default function TransactionPage({ user, setUser }) {
             {scanning && <span style={{ color:'#f5a623',fontSize:10,animation:'blink 1s ease-in-out infinite' }}>● PROCESSING</span>}
           </div>
 
-          <ScanCapture onVerified={handleVerified} scanning={scanning} setScanning={setScanning} />
-
-          <div style={{ fontFamily:'DM Mono,monospace',fontSize:10,color:'#1a2d45',textAlign:'center',letterSpacing:'.8px' }}>
-            After each verification the scanner automatically resets — ready for the next product
-          </div>
+          {scannerOpen ? (
+            <>
+              <ScanCapture onVerified={handleVerified} scanning={scanning} setScanning={setScanning} />
+              <button
+                onClick={() => { if (!scanning) setScannerOpen(false) }}
+                disabled={scanning}
+                style={{
+                  padding:'10px 18px', borderRadius:12, cursor: scanning ? 'not-allowed' : 'pointer',
+                  fontFamily:'DM Mono,monospace', fontSize:11, letterSpacing:'.8px',
+                  border:'1px solid #162f56', background:'transparent', color:'#2d4a66',
+                  alignSelf:'center', opacity: scanning ? .5 : 1, transition:'color .2s,border-color .2s',
+                }}
+                onMouseOver={e => { if (!scanning) { e.currentTarget.style.color='#c8dff5'; e.currentTarget.style.borderColor='#1a3a66' } }}
+                onMouseOut={e => { e.currentTarget.style.color='#2d4a66'; e.currentTarget.style.borderColor='#162f56' }}
+              >
+                ✕ Cancel scan
+              </button>
+              <div style={{ fontFamily:'DM Mono,monospace',fontSize:10,color:'#1a2d45',textAlign:'center',letterSpacing:'.8px' }}>
+                After verification the scanner closes — click "Add Another Item" to scan the next product
+              </div>
+            </>
+          ) : (
+            <button
+              onClick={() => setScannerOpen(true)}
+              disabled={scanning || paid}
+              style={{
+                padding:'18px 22px', borderRadius:14, border:'1.5px dashed rgba(0,232,255,.35)',
+                cursor: scanning || paid ? 'not-allowed' : 'pointer',
+                fontFamily:"'Syne', sans-serif", fontSize:14, fontWeight:700, letterSpacing:'.3px',
+                background:'rgba(0,232,255,.05)', color:'#00e8ff',
+                display:'flex', alignItems:'center', justifyContent:'center', gap:10,
+                transition:'background .2s, border-color .2s, transform .15s',
+                opacity: scanning || paid ? .4 : 1,
+              }}
+              onMouseOver={e => { if (!scanning && !paid) { e.currentTarget.style.background='rgba(0,232,255,.1)'; e.currentTarget.style.borderColor='rgba(0,232,255,.6)'; e.currentTarget.style.transform='translateY(-1px)' } }}
+              onMouseOut={e => { e.currentTarget.style.background='rgba(0,232,255,.05)'; e.currentTarget.style.borderColor='rgba(0,232,255,.35)'; e.currentTarget.style.transform='none' }}
+            >
+              <span style={{ fontSize:18 }}>＋</span>
+              {cart.length === 0 ? 'Scan First Item' : 'Add Another Item'}
+              <span style={{ fontFamily:'DM Mono,monospace', fontSize:10, color:'#2d4a66', letterSpacing:'1px', marginLeft:6 }}>
+                · re-runs YOLO + OCR
+              </span>
+            </button>
+          )}
         </div>
 
         {/* ── Right: Summary ─────────────────────────────────── */}

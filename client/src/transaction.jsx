@@ -18,28 +18,35 @@ function RingOrb({ size = 220, color = '#00e8ff', style }) {
   )
 }
 
-/* ── Scan input card (product + barcode capture) ─────────────── */
+/* ── Scan input card (product image + typed barcode) ─────────── */
 function ScanCapture({ onVerified, scanning, setScanning }) {
   const [productB64, setProductB64]   = useState(null)
-  const [barcodeB64, setBarcodeB64]   = useState(null)
+  const [barcodeInput, setBarcodeInput] = useState('')
   const [step, setStep]               = useState('idle')   // idle | product | barcode | verifying
   const [camOpen, setCamOpen]         = useState(false)
   const [camTarget, setCamTarget]     = useState(null)
   const [flash, setFlash]             = useState(false)
-  const productRef = useRef(null)
-  const barcodeRef = useRef(null)
-  const videoRef   = useRef(null)
-  const streamRef  = useRef(null)
+  const [inputFocused, setInputFocused] = useState(false)
+  const productRef      = useRef(null)
+  const barcodeFieldRef = useRef(null)
+  const videoRef        = useRef(null)
+  const streamRef       = useRef(null)
 
-  /* load Quagga + Tesseract for client-side pre-extract */
+  /* load Tesseract for client-side product OCR */
   useEffect(() => {
-    ['https://cdnjs.cloudflare.com/ajax/libs/tesseract.js/5.0.2/tesseract.min.js',
-     'https://cdnjs.cloudflare.com/ajax/libs/quagga/0.12.1/quagga.min.js'].forEach(src => {
-      if (!document.querySelector(`script[src="${src}"]`)) {
-        const s = document.createElement('script'); s.src = src; document.head.appendChild(s)
-      }
-    })
+    const src = 'https://cdnjs.cloudflare.com/ajax/libs/tesseract.js/5.0.2/tesseract.min.js'
+    if (!document.querySelector(`script[src="${src}"]`)) {
+      const s = document.createElement('script'); s.src = src; document.head.appendChild(s)
+    }
   }, [])
+
+  /* auto-focus the barcode input when we land on step 'barcode' */
+  useEffect(() => {
+    if (step === 'barcode') {
+      const t = setTimeout(() => barcodeFieldRef.current?.focus(), 120)
+      return () => clearTimeout(t)
+    }
+  }, [step])
 
   function readFile(file, setter, type) {
     const r = new FileReader()
@@ -70,41 +77,21 @@ function ScanCapture({ onVerified, scanning, setScanning }) {
     c.width = v.videoWidth; c.height = v.videoHeight
     c.getContext('2d').drawImage(v, 0, 0)
     const b64 = c.toDataURL('image/jpeg', .9)
-    const tgt = camTarget; closeCamera()
-    if (tgt === 'product') { setProductB64(b64); setStep('barcode') }
-    else                   { setBarcodeB64(b64); setStep('ready') }
+    closeCamera()
+    setProductB64(b64); setStep('barcode')
   }
 
-  /* decode barcode client-side (display only) */
-  async function decodeBarcodeB64(b64) {
-    if (!window.Quagga) return { barcodeValue: '', ocrText: '' }
-    let barcodeValue = ''
-    try {
-      barcodeValue = await new Promise((res, rej) =>
-        window.Quagga.decodeSingle({
-          decoder: { readers: ['ean_reader','ean_8_reader','code_128_reader','upc_reader'] },
-          locate: true, src: b64,
-        }, r => r?.codeResult ? res(r.codeResult.code) : rej())
-      )
-    } catch {}
-    let ocrText = ''
-    try {
-      if (window.Tesseract) {
-        const w = await window.Tesseract.createWorker('eng')
-        const { data: { text } } = await w.recognize(b64)
-        await w.terminate()
-        ocrText = text.trim().replace(/\s+/g, ' ')
-      }
-    } catch {}
-    return { barcodeValue, ocrText }
+  function submitBarcode() {
+    const v = barcodeInput.trim()
+    if (v.length < 4 || !productB64 || scanning) return
+    setStep('ready')
   }
 
   async function runVerify() {
-    if (!productB64 || !barcodeB64) return
+    const barcodeValue = barcodeInput.trim()
+    if (!productB64 || !barcodeValue) return
     setStep('verifying'); setScanning(true)
     setFlash(true); setTimeout(() => setFlash(false), 350)
-
-    const { barcodeValue, ocrText } = await decodeBarcodeB64(barcodeB64)
 
     let productOcrText = ''
     try {
@@ -122,9 +109,9 @@ function ScanCapture({ onVerified, scanning, setScanning }) {
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify({
-          barcode:     barcodeValue || '',
+          barcode:     barcodeValue,
           product_ocr: productOcrText || '',
-          barcode_ocr: ocrText || '',
+          barcode_ocr: barcodeValue,                  // typed value also acts as barcode_ocr
           yolo_label:  '',
           image_b64:   productB64?.split(',')[1] || null,
         }),
@@ -135,35 +122,35 @@ function ScanCapture({ onVerified, scanning, setScanning }) {
     } catch (err) {
       await onVerified(null, barcodeValue, productB64, err.message)
     } finally {
-      setProductB64(null); setBarcodeB64(null)
+      setProductB64(null); setBarcodeInput('')
       setStep('idle'); setScanning(false)
     }
   }
 
-  /* auto-trigger when both images ready */
+  /* auto-trigger when both inputs ready */
   useEffect(() => {
     if (step === 'ready') runVerify()
   }, [step])
 
   const stepMeta = {
-    idle:      { label: 'Step 1 — Product image',  color: '#00e8ff', icon: '📦' },
-    product:   { label: 'Step 1 — Product image',  color: '#00e8ff', icon: '📦' },
-    barcode:   { label: 'Step 2 — Barcode image',  color: '#a78bfa', icon: '🔲' },
-    ready:     { label: 'Sending to AI…',          color: '#f5a623', icon: '⚡' },
-    verifying: { label: 'AI Verifying…',           color: '#f5a623', icon: '⚡' },
+    idle:      { label: 'Step 1 — Product image',     color: '#00e8ff', icon: '📦' },
+    product:   { label: 'Step 1 — Product image',     color: '#00e8ff', icon: '📦' },
+    barcode:   { label: 'Step 2 — Enter barcode #',   color: '#a78bfa', icon: '⌨️' },
+    ready:     { label: 'Sending to AI…',             color: '#f5a623', icon: '⚡' },
+    verifying: { label: 'AI Verifying…',              color: '#f5a623', icon: '⚡' },
   }
   const sm = stepMeta[step]
 
   return (
     <>
-      {/* camera modal */}
+      {/* camera modal (product only) */}
       {camOpen && (
         <div onClick={e => e.target === e.currentTarget && closeCamera()}
           style={{ position:'fixed',inset:0,zIndex:300,background:'rgba(0,0,0,.92)',backdropFilter:'blur(16px)',display:'flex',alignItems:'center',justifyContent:'center',padding:20 }}>
           <div style={{ width:'100%',maxWidth:480,borderRadius:20,overflow:'hidden',border:'1px solid rgba(0,232,255,.22)',background:'#080f1e' }}>
             <div style={{ padding:'12px 18px',borderBottom:'1px solid #102040',display:'flex',alignItems:'center',justifyContent:'space-between' }}>
               <span style={{ fontFamily:'Syne,sans-serif',fontSize:14,fontWeight:700,color:'#c8dff5' }}>
-                {camTarget==='product' ? '📦 Capture Product' : '🔲 Capture Barcode'}
+                📦 Capture Product
               </span>
               <button onClick={closeCamera} style={{ width:26,height:26,borderRadius:'50%',background:'rgba(255,59,78,.14)',border:'none',color:'#ff3b4e',fontSize:13,cursor:'pointer' }}>✕</button>
             </div>
@@ -204,7 +191,7 @@ function ScanCapture({ onVerified, scanning, setScanning }) {
         {/* Progress dots */}
         <div style={{ padding:'12px 20px',display:'flex',alignItems:'center',gap:8 }}>
           {['product','barcode'].map((s,i) => {
-            const done = (s==='product' && (productB64||step==='barcode'||step==='ready'||step==='verifying')) || (s==='barcode' && (barcodeB64||step==='ready'||step==='verifying'))
+            const done = (s==='product' && (productB64||step==='barcode'||step==='ready'||step==='verifying')) || (s==='barcode' && ((barcodeInput.trim().length>=4 && (step==='ready'||step==='verifying')) || step==='ready' || step==='verifying'))
             const active = (s==='product' && (step==='idle'||step==='product')) || (s==='barcode' && step==='barcode')
             return (
               <div key={s} style={{ display:'flex',alignItems:'center',gap:8 }}>
@@ -212,7 +199,7 @@ function ScanCapture({ onVerified, scanning, setScanning }) {
                   {done ? '✓' : i+1}
                 </div>
                 <span style={{ fontSize:11,color:done?'#00e888':active?'#00e8ff':'#2d4a66',fontFamily:'DM Mono,monospace',letterSpacing:'.5px',transition:'color .3s' }}>
-                  {s==='product'?'Product':'Barcode'}
+                  {s==='product'?'Product':'Barcode #'}
                 </span>
                 {i===0 && <div style={{ width:24,height:1,background:productB64?'rgba(0,232,136,.35)':'#162f56',transition:'background .3s' }} />}
               </div>
@@ -240,23 +227,156 @@ function ScanCapture({ onVerified, scanning, setScanning }) {
           </div>
         )}
 
-        {/* Upload area — barcode */}
-        {step==='barcode' && !barcodeB64 && (
-          <div style={{ padding:'0 20px 20px' }}>
-            <div onClick={() => barcodeRef.current?.click()}
-              style={{ borderRadius:14,border:'1.5px dashed rgba(167,139,250,.25)',padding:'28px 16px',display:'flex',flexDirection:'column',alignItems:'center',gap:10,cursor:'pointer',background:'rgba(0,0,0,.3)',transition:'border-color .2s' }}
-              onMouseOver={e => e.currentTarget.style.borderColor='rgba(167,139,250,.5)'}
-              onMouseOut={e => e.currentTarget.style.borderColor='rgba(167,139,250,.25)'}
+        {/* Barcode # input — animated */}
+        {step==='barcode' && (
+          <div style={{ padding:'4px 20px 20px' }}>
+            {/* product preview chip */}
+            {productB64 && (
+              <div style={{ display:'flex',alignItems:'center',gap:10,padding:'8px 10px',marginBottom:12,borderRadius:10,background:'rgba(0,232,136,.06)',border:'1px solid rgba(0,232,136,.2)',fontFamily:'DM Mono,monospace',fontSize:11,color:'#00e888' }}>
+                <img src={productB64} alt="" style={{ width:32,height:32,borderRadius:6,objectFit:'cover',border:'1px solid rgba(0,232,136,.25)' }} />
+                <span>✓ Product image captured</span>
+                <span style={{ marginLeft:'auto',color:'#2d4a66' }}>now type the barcode #</span>
+              </div>
+            )}
+
+            {/* Animated input wrapper */}
+            <div
+              onClick={() => barcodeFieldRef.current?.focus()}
+              style={{
+                position:'relative',
+                borderRadius:14,
+                padding:2,
+                cursor:'text',
+                background: inputFocused
+                  ? 'conic-gradient(from var(--ang,0deg),#a78bfa,#00e8ff,#a78bfa,#7c3aed,#a78bfa)'
+                  : 'linear-gradient(135deg,rgba(167,139,250,.35),rgba(124,58,237,.18))',
+                animation: inputFocused ? 'rotateGrad 3s linear infinite' : 'none',
+                transition:'background .3s',
+                boxShadow: inputFocused
+                  ? '0 0 0 4px rgba(167,139,250,.12), 0 0 32px rgba(167,139,250,.25)'
+                  : '0 0 0 0 rgba(167,139,250,0)',
+              }}
             >
-              <span style={{ fontSize:28 }}>🔲</span>
-              <span style={{ fontSize:13,color:'#8faec8',fontFamily:'DM Mono,monospace' }}>Upload barcode image</span>
-              <span style={{ fontSize:10,color:'#2d4a66',fontFamily:'DM Mono,monospace',letterSpacing:'.8px' }}>JPG · PNG · WEBP</span>
+              <div style={{
+                position:'relative', overflow:'hidden',
+                borderRadius:12, background:'#06091a',
+                padding:'18px 18px 14px',
+              }}>
+                {/* scanning line */}
+                <div style={{
+                  position:'absolute', left:0, right:0, height:2, top:0,
+                  background:'linear-gradient(90deg,transparent,#a78bfa,#00e8ff,#a78bfa,transparent)',
+                  boxShadow:'0 0 14px #a78bfa',
+                  animation:'barcodeScan 2.4s ease-in-out infinite',
+                  opacity: inputFocused ? .9 : .35,
+                  transition:'opacity .3s',
+                }} />
+
+                {/* faux barcode lines decoration */}
+                <div aria-hidden style={{
+                  position:'absolute', inset:0, opacity:.05, pointerEvents:'none',
+                  background:'repeating-linear-gradient(90deg,#a78bfa 0,#a78bfa 2px,transparent 2px,transparent 6px)',
+                }} />
+
+                {/* label */}
+                <div style={{
+                  display:'flex', alignItems:'center', gap:8, marginBottom:10,
+                  fontFamily:'DM Mono,monospace', fontSize:10, letterSpacing:'1.5px',
+                  textTransform:'uppercase', color:'#7c3aed',
+                }}>
+                  <span style={{ fontSize:14 }}>⌨️</span>
+                  Barcode Number · must match product ID
+                  <span style={{
+                    marginLeft:'auto', padding:'2px 7px', borderRadius:6,
+                    background:'rgba(167,139,250,.12)', border:'1px solid rgba(167,139,250,.25)',
+                    color:'#a78bfa', fontSize:9, letterSpacing:'.6px',
+                  }}>
+                    {barcodeInput.length}/13
+                  </span>
+                </div>
+
+                {/* the actual input */}
+                <input
+                  ref={barcodeFieldRef}
+                  type="text"
+                  inputMode="numeric"
+                  autoComplete="off"
+                  spellCheck={false}
+                  maxLength={20}
+                  value={barcodeInput}
+                  onFocus={() => setInputFocused(true)}
+                  onBlur={()  => setInputFocused(false)}
+                  onChange={e => setBarcodeInput(e.target.value.replace(/\s+/g,''))}
+                  onKeyDown={e => { if (e.key === 'Enter') submitBarcode() }}
+                  placeholder="0000000000000"
+                  style={{
+                    width:'100%', background:'transparent', border:'none', outline:'none',
+                    color:'#e9d5ff', fontFamily:'DM Mono,monospace',
+                    fontSize:30, fontWeight:600, letterSpacing:'8px',
+                    textAlign:'center', padding:'10px 0 14px',
+                    caretColor:'#00e8ff',
+                    textShadow: inputFocused ? '0 0 18px rgba(167,139,250,.45)' : 'none',
+                    transition:'text-shadow .3s',
+                  }}
+                />
+
+                {/* digit cells preview */}
+                <div style={{
+                  display:'flex', justifyContent:'center', gap:6, marginTop:4, flexWrap:'wrap',
+                }}>
+                  {Array.from({ length: Math.max(13, barcodeInput.length) }).map((_, i) => {
+                    const ch = barcodeInput[i]
+                    const filled = ch !== undefined
+                    const isCaret = i === barcodeInput.length && inputFocused
+                    return (
+                      <div key={i} style={{
+                        width:18, height:24, borderRadius:5,
+                        display:'flex', alignItems:'center', justifyContent:'center',
+                        fontFamily:'DM Mono,monospace', fontSize:13, fontWeight:700,
+                        color: filled ? '#e9d5ff' : '#2d4a66',
+                        background: filled ? 'rgba(167,139,250,.16)' : 'rgba(255,255,255,.025)',
+                        border:`1px solid ${filled ? 'rgba(167,139,250,.4)' : isCaret ? 'rgba(0,232,255,.55)' : '#162f56'}`,
+                        boxShadow: isCaret ? '0 0 10px rgba(0,232,255,.4)' : 'none',
+                        animation: filled ? `cellPop .25s cubic-bezier(.34,1.56,.64,1) both` : isCaret ? 'caretBlink 1s ease-in-out infinite' : 'none',
+                        transition:'background .2s,border-color .2s',
+                      }}>
+                        {ch || ''}
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
             </div>
-            <div style={{ display:'flex',gap:8,marginTop:10 }}>
-              <button onClick={() => barcodeRef.current?.click()} style={{ flex:1,padding:10,borderRadius:10,cursor:'pointer',fontSize:12,fontWeight:600,fontFamily:'DM Mono,monospace',border:'1px solid rgba(167,139,250,.25)',background:'rgba(167,139,250,.07)',color:'#a78bfa' }}>↑ Upload</button>
-              <button onClick={() => openCamera('barcode')} style={{ padding:'10px 14px',borderRadius:10,cursor:'pointer',fontSize:14,border:'1px solid #162f56',background:'rgba(255,255,255,.03)',color:'#2d4a66' }}>📷</button>
+
+            {/* hint + submit */}
+            <div style={{ display:'flex', alignItems:'center', gap:10, marginTop:12 }}>
+              <span style={{
+                flex:1, fontFamily:'DM Mono,monospace', fontSize:10, color:'#2d4a66',
+                letterSpacing:'.6px',
+              }}>
+                ⏎ press <span style={{ color:'#a78bfa' }}>Enter</span> or click verify · {barcodeInput.trim().length<4?'min 4 chars':'ready'}
+              </span>
+              <button
+                onClick={submitBarcode}
+                disabled={barcodeInput.trim().length<4 || scanning}
+                style={{
+                  padding:'10px 16px', borderRadius:10, cursor: barcodeInput.trim().length<4||scanning?'not-allowed':'pointer',
+                  fontSize:12, fontWeight:700, fontFamily:'DM Mono,monospace', letterSpacing:'.6px',
+                  border:'1px solid rgba(167,139,250,.4)',
+                  background: barcodeInput.trim().length<4||scanning
+                    ? 'rgba(167,139,250,.05)'
+                    : 'linear-gradient(135deg,#a78bfa,#7c3aed)',
+                  color: barcodeInput.trim().length<4||scanning ? '#5b21b6' : '#fff',
+                  opacity: barcodeInput.trim().length<4||scanning ? .5 : 1,
+                  transition:'transform .15s, box-shadow .25s',
+                  boxShadow: barcodeInput.trim().length>=4 && !scanning ? '0 4px 22px rgba(167,139,250,.4)' : 'none',
+                }}
+                onMouseOver={e => { if(barcodeInput.trim().length>=4 && !scanning) e.currentTarget.style.transform='translateY(-1px)' }}
+                onMouseOut={e => e.currentTarget.style.transform='none'}
+              >
+                ⚡ Verify
+              </button>
             </div>
-            <input ref={barcodeRef} type="file" accept="image/*" style={{ display:'none' }} onChange={e => { if(e.target.files[0]) readFile(e.target.files[0], setBarcodeB64, 'barcode'); e.target.value='' }} />
           </div>
         )}
 
@@ -722,4 +842,11 @@ const globalCSS = `
   @keyframes cardIn   { from{opacity:0;transform:translateY(18px) scale(.98)} to{opacity:1;transform:none} }
   @keyframes rowIn    { from{opacity:0;transform:translateX(-8px)} to{opacity:1;transform:none} }
   @keyframes popIn    { from{opacity:0;transform:scale(.7)} to{opacity:1;transform:scale(1)} }
+
+  /* barcode-input animations */
+  @keyframes barcodeScan { 0%{top:0;opacity:0} 10%{opacity:1} 50%{top:calc(100% - 2px);opacity:1} 60%{opacity:0} 100%{top:0;opacity:0} }
+  @keyframes cellPop     { 0%{transform:scale(.6);opacity:0} 60%{transform:scale(1.12)} 100%{transform:scale(1);opacity:1} }
+  @keyframes caretBlink  { 0%,49%{border-color:rgba(0,232,255,.55);box-shadow:0 0 10px rgba(0,232,255,.4)} 50%,100%{border-color:rgba(0,232,255,.15);box-shadow:none} }
+  @property --ang { syntax: '<angle>'; inherits: false; initial-value: 0deg; }
+  @keyframes rotateGrad { to { --ang: 360deg } }
 `

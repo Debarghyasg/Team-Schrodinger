@@ -4,7 +4,6 @@ import LoginPage       from './login.jsx'
 import SignupPage      from './signup.jsx'
 import HomePage        from './home.jsx'
 import CheckoutPage    from './checkout.jsx'
-import TransactionPage from './transaction.jsx'
 
 function LoadingScreen() {
   return (
@@ -75,7 +74,6 @@ export default function App() {
         <Route path="/signup"      element={<SignupPage />} />
         <Route path="/home"        element={<AuthGuard user={user}><HomePage        user={user} setUser={setUser} /></AuthGuard>} />
         <Route path="/checkout"    element={<AuthGuard user={user}><CheckoutPage    user={user} setUser={setUser} /></AuthGuard>} />
-        <Route path="/transaction" element={<AuthGuard user={user}><TransactionPage user={user} setUser={setUser} /></AuthGuard>} />
         <Route path="*"            element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>

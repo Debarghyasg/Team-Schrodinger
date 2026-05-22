@@ -429,6 +429,7 @@ export default function HomePage({ user, setUser }) {
 
   // ── Result / UI state ────────────────────────────────────────────────
   const [result,   setResult]   = useState(null)
+  const [matchData, setMatchData] = useState(null)   // raw FastAPI /match payload, for handoff to /transaction
   const [matching, setMatching] = useState(false)
   const [toast,    setToast]    = useState({ msg: '', type: '', show: false })
 
@@ -487,6 +488,7 @@ export default function HomePage({ user, setUser }) {
         setBarcodeAnalyzing(false)
       }
       setResult(null)
+      setMatchData(null)
     }
     reader.readAsDataURL(file)
   }
@@ -559,6 +561,7 @@ export default function HomePage({ user, setUser }) {
       }
 
       const data = await res.json()
+      setMatchData(data)   // keep raw payload to forward to /transaction
 
       // Map FastAPI /match response → UI result object
       const type =
@@ -807,7 +810,7 @@ export default function HomePage({ user, setUser }) {
             label="Product Image" icon="📦"
             onFile={f => loadImage(f, 'product')}
             onCamera={openCamera}
-            onRemove={() => { setProduct({ base64:null, ocrText:'', ready:false }); setResult(null) }}
+            onRemove={() => { setProduct({ base64:null, ocrText:'', ready:false }); setResult(null); setMatchData(null) }}
             fileRef={productFileRef}
             product={product} barcode={barcode} />
 
@@ -827,7 +830,7 @@ export default function HomePage({ user, setUser }) {
             label="Barcode Image" icon="🔲"
             onFile={f => loadImage(f, 'barcode')}
             onCamera={openCamera}
-            onRemove={() => { setBarcode({ base64:null, ocrText:'', barcodeValue:'', ready:false }); setResult(null) }}
+            onRemove={() => { setBarcode({ base64:null, ocrText:'', barcodeValue:'', ready:false }); setResult(null); setMatchData(null) }}
             fileRef={barcodeFileRef}
             product={product} barcode={barcode} />
         </div>
@@ -934,6 +937,47 @@ export default function HomePage({ user, setUser }) {
                   </span>
                 </div>
               )}
+
+              {/* Action footer — Approve & Move to Cart */}
+              <div style={{
+                padding:'18px 28px',
+                borderTop:'1px solid rgba(255,255,255,.045)',
+                display:'flex', gap:12, alignItems:'center', justifyContent:'flex-end',
+                background:'rgba(0,0,0,.25)',
+              }}>
+                {result.type === 'mismatch'
+                  ? (
+                    <span style={{ fontSize:11, color:'#fca5a5', fontFamily:'monospace', letterSpacing:'.5px', marginRight:'auto' }}>
+                      Cannot approve — fraud flag must be cleared by supervisor.
+                    </span>
+                  )
+                  : (
+                    <span style={{ fontSize:11, color:'rgba(167,139,250,.85)', fontFamily:'monospace', letterSpacing:'.5px', marginRight:'auto' }}>
+                      {result.type === 'partial' ? 'Partial match — review before approving.' : 'Verified. Ready to add to cart.'}
+                    </span>
+                  )
+                }
+                <button
+                  disabled={result.type === 'mismatch' || !matchData}
+                  onClick={() => navigate('/transaction', { state: { matchResult: matchData, barcode, product } })}
+                  style={{
+                    padding:'12px 26px', borderRadius:11, border:'none',
+                    cursor: result.type === 'mismatch' ? 'not-allowed' : 'pointer',
+                    fontFamily:"'Sora', sans-serif", fontSize:13, fontWeight:800, letterSpacing:'.3px',
+                    background: result.type === 'mismatch'
+                      ? 'rgba(252,165,165,.12)'
+                      : 'linear-gradient(135deg,#7c3aed,#5b21b6)',
+                    color: result.type === 'mismatch' ? '#fca5a5' : '#fff',
+                    boxShadow: result.type === 'mismatch' ? 'none' : '0 4px 22px rgba(124,58,237,.45)',
+                    opacity: result.type === 'mismatch' ? .6 : 1,
+                    transition: 'transform .15s, box-shadow .2s',
+                  }}
+                  onMouseOver={e => { if (result.type !== 'mismatch') e.currentTarget.style.transform = 'translateY(-1px)' }}
+                  onMouseOut={e => { e.currentTarget.style.transform = 'none' }}
+                >
+                  {result.type === 'partial' ? '⚠ Approve Anyway → Cart' : '✓ Approve & Move to Cart'}
+                </button>
+              </div>
 
             </BrowserCard>
           </div>

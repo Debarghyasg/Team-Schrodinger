@@ -5,24 +5,36 @@ import { useNavigate, useLocation } from 'react-router-dom'
 let _uid = 0
 const uid = () => ++_uid
 
-/* ── Particle ring (decorative) ─────────────────────────────── */
-function RingOrb({ size = 220, color = '#00e8ff', style }) {
+/* ── Particle Field ─────────────────────────────────────────── */
+function ParticleField() {
+  const dots = Array.from({ length: 22 }, (_, i) => ({
+    id: i,
+    left: `${(i * 41 + 5) % 100}%`,
+    top: `${(i * 57 + 9) % 100}%`,
+    size: 1 + (i % 3),
+    delay: `${(i * 0.45) % 6}s`,
+    dur: `${5 + (i % 4)}s`,
+  }))
   return (
-    <div style={{
-      width: size, height: size, borderRadius: '50%',
-      border: `1px solid ${color}18`,
-      boxShadow: `0 0 ${size * .4}px ${color}08, inset 0 0 ${size * .3}px ${color}06`,
-      position: 'absolute', pointerEvents: 'none',
-      ...style,
-    }} />
+    <div style={{ position: 'fixed', inset: 0, zIndex: 0, pointerEvents: 'none', overflow: 'hidden' }}>
+      {dots.map(d => (
+        <div key={d.id} style={{
+          position: 'absolute', left: d.left, top: d.top,
+          width: d.size, height: d.size, borderRadius: '50%',
+          background: '#7c3aed', opacity: 0,
+          animation: `particlePulse ${d.dur} ease-in-out ${d.delay} infinite`,
+        }} />
+      ))}
+    </div>
   )
 }
+
 
 /* ── Scan input card (product image + typed barcode) ─────────── */
 function ScanCapture({ onVerified, scanning, setScanning }) {
   const [productB64, setProductB64]   = useState(null)
   const [barcodeInput, setBarcodeInput] = useState('')
-  const [step, setStep]               = useState('idle')   // idle | product | barcode | verifying
+  const [step, setStep]               = useState('idle')
   const [camOpen, setCamOpen]         = useState(false)
   const [camTarget, setCamTarget]     = useState(null)
   const [flash, setFlash]             = useState(false)
@@ -32,7 +44,6 @@ function ScanCapture({ onVerified, scanning, setScanning }) {
   const videoRef        = useRef(null)
   const streamRef       = useRef(null)
 
-  /* load Tesseract for client-side product OCR */
   useEffect(() => {
     const src = 'https://cdnjs.cloudflare.com/ajax/libs/tesseract.js/5.0.2/tesseract.min.js'
     if (!document.querySelector(`script[src="${src}"]`)) {
@@ -40,7 +51,6 @@ function ScanCapture({ onVerified, scanning, setScanning }) {
     }
   }, [])
 
-  /* auto-focus the barcode input when we land on step 'barcode' */
   useEffect(() => {
     if (step === 'barcode') {
       const t = setTimeout(() => barcodeFieldRef.current?.focus(), 120)
@@ -87,6 +97,7 @@ function ScanCapture({ onVerified, scanning, setScanning }) {
     setStep('ready')
   }
 
+
   async function runVerify() {
     const barcodeValue = barcodeInput.trim()
     if (!productB64 || !barcodeValue) return
@@ -111,7 +122,7 @@ function ScanCapture({ onVerified, scanning, setScanning }) {
         body: JSON.stringify({
           barcode:     barcodeValue,
           product_ocr: productOcrText || '',
-          barcode_ocr: barcodeValue,                  // typed value also acts as barcode_ocr
+          barcode_ocr: barcodeValue,
           yolo_label:  '',
           image_b64:   productB64?.split(',')[1] || null,
         }),
@@ -127,64 +138,66 @@ function ScanCapture({ onVerified, scanning, setScanning }) {
     }
   }
 
-  /* auto-trigger when both inputs ready */
   useEffect(() => {
     if (step === 'ready') runVerify()
   }, [step])
 
   const stepMeta = {
-    idle:      { label: 'Step 1 — Product image',     color: '#00e8ff', icon: '📦' },
-    product:   { label: 'Step 1 — Product image',     color: '#00e8ff', icon: '📦' },
-    barcode:   { label: 'Step 2 — Enter barcode #',   color: '#a78bfa', icon: '⌨️' },
-    ready:     { label: 'Sending to AI…',             color: '#f5a623', icon: '⚡' },
-    verifying: { label: 'AI Verifying…',              color: '#f5a623', icon: '⚡' },
+    idle:      { label: 'Step 1 — Product image',   color: '#a78bfa', icon: '📦' },
+    product:   { label: 'Step 1 — Product image',   color: '#a78bfa', icon: '📦' },
+    barcode:   { label: 'Step 2 — Enter barcode #', color: '#c4b5fd', icon: '⌨️' },
+    ready:     { label: 'Sending to AI…',           color: '#e9d5ff', icon: '⚡' },
+    verifying: { label: 'AI Verifying…',            color: '#e9d5ff', icon: '⚡' },
   }
   const sm = stepMeta[step]
 
+
   return (
     <>
-      {/* camera modal (product only) */}
+      {/* camera modal */}
       {camOpen && (
         <div onClick={e => e.target === e.currentTarget && closeCamera()}
           style={{ position:'fixed',inset:0,zIndex:300,background:'rgba(0,0,0,.92)',backdropFilter:'blur(16px)',display:'flex',alignItems:'center',justifyContent:'center',padding:20 }}>
-          <div style={{ width:'100%',maxWidth:480,borderRadius:20,overflow:'hidden',border:'1px solid rgba(0,232,255,.22)',background:'#080f1e' }}>
-            <div style={{ padding:'12px 18px',borderBottom:'1px solid #102040',display:'flex',alignItems:'center',justifyContent:'space-between' }}>
-              <span style={{ fontFamily:'Syne,sans-serif',fontSize:14,fontWeight:700,color:'#c8dff5' }}>
+          <div style={{ width:'100%',maxWidth:480,borderRadius:20,overflow:'hidden',border:'1px solid rgba(124,58,237,.38)',background:'rgba(8,3,18,.95)' }}>
+            <div style={{ padding:'12px 18px',borderBottom:'1px solid rgba(109,40,217,.22)',display:'flex',alignItems:'center',justifyContent:'space-between' }}>
+              <span style={{ fontFamily:"'Sora',sans-serif",fontSize:14,fontWeight:700,color:'#e9d5ff' }}>
                 📦 Capture Product
               </span>
-              <button onClick={closeCamera} style={{ width:26,height:26,borderRadius:'50%',background:'rgba(255,59,78,.14)',border:'none',color:'#ff3b4e',fontSize:13,cursor:'pointer' }}>✕</button>
+              <button onClick={closeCamera} style={{ width:26,height:26,borderRadius:'50%',background:'rgba(239,68,68,.14)',border:'none',color:'#f87171',fontSize:13,cursor:'pointer' }}>✕</button>
             </div>
             <div style={{ position:'relative',aspectRatio:'4/3',background:'#000',overflow:'hidden' }}>
               <video ref={videoRef} autoPlay playsInline muted style={{ width:'100%',height:'100%',objectFit:'cover' }} />
-              <div style={{ position:'absolute',left:'10%',right:'10%',height:2,background:'linear-gradient(90deg,transparent,#00e8ff,transparent)',boxShadow:'0 0 14px #00e8ff',animation:'scanLine 1.8s ease-in-out infinite' }} />
+              <div style={{ position:'absolute',left:'10%',right:'10%',height:2,background:'linear-gradient(90deg,transparent,#a78bfa,transparent)',boxShadow:'0 0 14px #7c3aed',animation:'scanLine 1.8s ease-in-out infinite' }} />
             </div>
             <div style={{ padding:14,display:'flex',gap:10 }}>
-              <button onClick={captureFromCamera} style={{ flex:1,padding:12,border:'none',borderRadius:10,cursor:'pointer',fontFamily:'Syne,sans-serif',fontSize:14,fontWeight:700,background:'linear-gradient(135deg,#00e8ff,#00b8cc)',color:'#04070d' }}>📸 Capture</button>
-              <button onClick={closeCamera} style={{ padding:'12px 16px',borderRadius:10,cursor:'pointer',background:'transparent',border:'1px solid #162f56',color:'#2d4a66',fontSize:13 }}>Cancel</button>
+              <button onClick={captureFromCamera} style={{ flex:1,padding:12,border:'none',borderRadius:10,cursor:'pointer',fontFamily:"'Sora',sans-serif",fontSize:14,fontWeight:700,background:'linear-gradient(135deg,#7c3aed,#5b21b6)',color:'#fff' }}>📸 Capture</button>
+              <button onClick={closeCamera} style={{ padding:'12px 16px',borderRadius:10,cursor:'pointer',background:'transparent',border:'1px solid rgba(109,40,217,.3)',color:'#5b21b6',fontSize:13 }}>Cancel</button>
             </div>
           </div>
         </div>
       )}
 
       <div style={{
-        background: flash ? 'rgba(0,232,255,.07)' : '#080f1e',
-        border: `1px solid ${sm.color}28`,
+        background: flash ? 'rgba(124,58,237,.07)' : 'rgba(8,3,18,.88)',
+        border: `1px solid ${sm.color}38`,
         borderRadius: 20, overflow: 'hidden', position: 'relative',
         transition: 'background .2s',
+        backdropFilter: 'blur(14px)',
+        boxShadow: `0 0 44px ${sm.color}1a`,
       }}>
         <div style={{ position:'absolute',top:0,left:0,right:0,height:2,background:`linear-gradient(90deg,transparent,${sm.color},transparent)`,animation:'shimmer 2.5s ease-in-out infinite' }} />
 
         {/* Header */}
-        <div style={{ padding:'16px 20px',borderBottom:'1px solid #102040',display:'flex',alignItems:'center',gap:12 }}>
-          <div style={{ width:38,height:38,borderRadius:10,background:`${sm.color}18`,border:`1px solid ${sm.color}30`,display:'flex',alignItems:'center',justifyContent:'center',fontSize:18 }}>{sm.icon}</div>
+        <div style={{ padding:'16px 20px',borderBottom:'1px solid rgba(109,40,217,.18)',display:'flex',alignItems:'center',gap:12 }}>
+          <div style={{ width:38,height:38,borderRadius:10,background:`rgba(109,40,217,.15)`,border:`1px solid ${sm.color}40`,display:'flex',alignItems:'center',justifyContent:'center',fontSize:18,boxShadow:`0 0 14px ${sm.color}30` }}>{sm.icon}</div>
           <div>
-            <div style={{ fontFamily:'Syne,sans-serif',fontSize:14,fontWeight:700,color:'#c8dff5' }}>{sm.label}</div>
-            <div style={{ fontSize:10,color:'#2d4a66',fontFamily:'DM Mono,monospace',letterSpacing:'1px',marginTop:2 }}>
+            <div style={{ fontFamily:"'Sora',sans-serif",fontSize:14,fontWeight:700,color:'#e9d5ff' }}>{sm.label}</div>
+            <div style={{ fontSize:10,color:'#4c1d95',fontFamily:'monospace',letterSpacing:'1px',marginTop:2 }}>
               {step==='verifying' ? 'YOLOv8 + EasyOCR running…' : 'Upload or capture image'}
             </div>
           </div>
           {step==='verifying' && (
-            <div style={{ marginLeft:'auto',width:20,height:20,border:'2px solid rgba(245,166,35,.25)',borderTopColor:'#f5a623',borderRadius:'50%',animation:'spin .7s linear infinite' }} />
+            <div style={{ marginLeft:'auto',width:20,height:20,border:'2px solid rgba(167,139,250,.25)',borderTopColor:'#a78bfa',borderRadius:'50%',animation:'spin .7s linear infinite' }} />
           )}
         </div>
 
@@ -195,135 +208,103 @@ function ScanCapture({ onVerified, scanning, setScanning }) {
             const active = (s==='product' && (step==='idle'||step==='product')) || (s==='barcode' && step==='barcode')
             return (
               <div key={s} style={{ display:'flex',alignItems:'center',gap:8 }}>
-                <div style={{ width:28,height:28,borderRadius:8,display:'flex',alignItems:'center',justifyContent:'center',fontSize:13,fontWeight:700,fontFamily:'DM Mono,monospace',background:done?'rgba(0,232,136,.12)':active?'rgba(0,232,255,.1)':'rgba(255,255,255,.04)',border:`1px solid ${done?'rgba(0,232,136,.35)':active?'rgba(0,232,255,.3)':'#162f56'}`,color:done?'#00e888':active?'#00e8ff':'#2d4a66',transition:'all .3s' }}>
+                <div style={{ width:28,height:28,borderRadius:8,display:'flex',alignItems:'center',justifyContent:'center',fontSize:13,fontWeight:700,fontFamily:'monospace',background:done?'rgba(134,239,172,.1)':active?'rgba(124,58,237,.12)':'rgba(255,255,255,.03)',border:`1px solid ${done?'rgba(134,239,172,.4)':active?'rgba(124,58,237,.4)':'rgba(109,40,217,.2)'}`,color:done?'#86efac':active?'#a78bfa':'#4c1d95',transition:'all .3s' }}>
                   {done ? '✓' : i+1}
                 </div>
-                <span style={{ fontSize:11,color:done?'#00e888':active?'#00e8ff':'#2d4a66',fontFamily:'DM Mono,monospace',letterSpacing:'.5px',transition:'color .3s' }}>
+                <span style={{ fontSize:11,color:done?'#86efac':active?'#a78bfa':'#4c1d95',fontFamily:'monospace',letterSpacing:'.5px',transition:'color .3s' }}>
                   {s==='product'?'Product':'Barcode #'}
                 </span>
-                {i===0 && <div style={{ width:24,height:1,background:productB64?'rgba(0,232,136,.35)':'#162f56',transition:'background .3s' }} />}
+                {i===0 && <div style={{ width:24,height:1,background:productB64?'rgba(134,239,172,.4)':'rgba(109,40,217,.2)',transition:'background .3s' }} />}
               </div>
             )
           })}
         </div>
 
+
         {/* Upload area — product */}
         {(step==='idle' || step==='product') && !productB64 && (
           <div style={{ padding:'0 20px 20px' }}>
             <div onClick={() => productRef.current?.click()}
-              style={{ borderRadius:14,border:'1.5px dashed rgba(0,232,255,.25)',padding:'28px 16px',display:'flex',flexDirection:'column',alignItems:'center',gap:10,cursor:'pointer',background:'rgba(0,0,0,.3)',transition:'border-color .2s,background .2s' }}
-              onMouseOver={e => e.currentTarget.style.borderColor='rgba(0,232,255,.5)'}
-              onMouseOut={e => e.currentTarget.style.borderColor='rgba(0,232,255,.25)'}
+              style={{ borderRadius:14,border:'1.5px dashed rgba(124,58,237,.3)',padding:'28px 16px',display:'flex',flexDirection:'column',alignItems:'center',gap:10,cursor:'pointer',background:'rgba(109,40,217,.04)',transition:'border-color .2s,background .2s' }}
+              onMouseOver={e => e.currentTarget.style.borderColor='rgba(124,58,237,.6)'}
+              onMouseOut={e => e.currentTarget.style.borderColor='rgba(124,58,237,.3)'}
             >
               <span style={{ fontSize:28 }}>🖼️</span>
-              <span style={{ fontSize:13,color:'#8faec8',fontFamily:'DM Mono,monospace' }}>Upload product image</span>
-              <span style={{ fontSize:10,color:'#2d4a66',fontFamily:'DM Mono,monospace',letterSpacing:'.8px' }}>JPG · PNG · WEBP</span>
+              <span style={{ fontSize:13,color:'#a78bfa',fontFamily:"'Sora',sans-serif" }}>Upload product image</span>
+              <span style={{ fontSize:10,color:'#4c1d95',fontFamily:'monospace',letterSpacing:'.8px' }}>JPG · PNG · WEBP</span>
             </div>
             <div style={{ display:'flex',gap:8,marginTop:10 }}>
-              <button onClick={() => productRef.current?.click()} style={{ flex:1,padding:10,borderRadius:10,cursor:'pointer',fontSize:12,fontWeight:600,fontFamily:'DM Mono,monospace',border:'1px solid rgba(0,232,255,.25)',background:'rgba(0,232,255,.07)',color:'#00e8ff' }}>↑ Upload</button>
-              <button onClick={() => openCamera('product')} style={{ padding:'10px 14px',borderRadius:10,cursor:'pointer',fontSize:14,border:'1px solid #162f56',background:'rgba(255,255,255,.03)',color:'#2d4a66' }}>📷</button>
+              <button onClick={() => productRef.current?.click()} style={{ flex:1,padding:10,borderRadius:10,cursor:'pointer',fontSize:12,fontWeight:600,fontFamily:'monospace',border:'1px solid rgba(124,58,237,.3)',background:'rgba(109,40,217,.08)',color:'#a78bfa' }}>↑ Upload</button>
+              <button onClick={() => openCamera('product')} style={{ padding:'10px 14px',borderRadius:10,cursor:'pointer',fontSize:14,border:'1px solid rgba(109,40,217,.2)',background:'rgba(255,255,255,.02)',color:'#5b21b6' }}>📷</button>
             </div>
             <input ref={productRef} type="file" accept="image/*" style={{ display:'none' }} onChange={e => { if(e.target.files[0]) readFile(e.target.files[0], setProductB64, 'product'); e.target.value='' }} />
           </div>
         )}
 
-        {/* Barcode # input — animated */}
+        {/* Barcode # input */}
         {step==='barcode' && (
           <div style={{ padding:'4px 20px 20px' }}>
-            {/* product preview chip */}
             {productB64 && (
-              <div style={{ display:'flex',alignItems:'center',gap:10,padding:'8px 10px',marginBottom:12,borderRadius:10,background:'rgba(0,232,136,.06)',border:'1px solid rgba(0,232,136,.2)',fontFamily:'DM Mono,monospace',fontSize:11,color:'#00e888' }}>
-                <img src={productB64} alt="" style={{ width:32,height:32,borderRadius:6,objectFit:'cover',border:'1px solid rgba(0,232,136,.25)' }} />
+              <div style={{ display:'flex',alignItems:'center',gap:10,padding:'8px 10px',marginBottom:12,borderRadius:10,background:'rgba(134,239,172,.06)',border:'1px solid rgba(134,239,172,.2)',fontFamily:'monospace',fontSize:11,color:'#86efac' }}>
+                <img src={productB64} alt="" style={{ width:32,height:32,borderRadius:6,objectFit:'cover',border:'1px solid rgba(134,239,172,.25)' }} />
                 <span>✓ Product image captured</span>
-                <span style={{ marginLeft:'auto',color:'#2d4a66' }}>now type the barcode #</span>
+                <span style={{ marginLeft:'auto',color:'#4c1d95' }}>now type the barcode #</span>
               </div>
             )}
 
-            {/* Animated input wrapper */}
             <div
               onClick={() => barcodeFieldRef.current?.focus()}
               style={{
-                position:'relative',
-                borderRadius:14,
-                padding:2,
-                cursor:'text',
+                position:'relative', borderRadius:14, padding:2, cursor:'text',
                 background: inputFocused
-                  ? 'conic-gradient(from var(--ang,0deg),#a78bfa,#00e8ff,#a78bfa,#7c3aed,#a78bfa)'
+                  ? 'conic-gradient(from var(--ang,0deg),#a78bfa,#7c3aed,#c4b5fd,#5b21b6,#a78bfa)'
                   : 'linear-gradient(135deg,rgba(167,139,250,.35),rgba(124,58,237,.18))',
                 animation: inputFocused ? 'rotateGrad 3s linear infinite' : 'none',
                 transition:'background .3s',
                 boxShadow: inputFocused
-                  ? '0 0 0 4px rgba(167,139,250,.12), 0 0 32px rgba(167,139,250,.25)'
-                  : '0 0 0 0 rgba(167,139,250,0)',
+                  ? '0 0 0 4px rgba(124,58,237,.12), 0 0 32px rgba(124,58,237,.25)'
+                  : '0 0 0 0 rgba(124,58,237,0)',
               }}
             >
-              <div style={{
-                position:'relative', overflow:'hidden',
-                borderRadius:12, background:'#06091a',
-                padding:'18px 18px 14px',
-              }}>
-                {/* scanning line */}
+              <div style={{ position:'relative', overflow:'hidden', borderRadius:12, background:'rgba(8,3,18,.95)', padding:'18px 18px 14px' }}>
                 <div style={{
                   position:'absolute', left:0, right:0, height:2, top:0,
-                  background:'linear-gradient(90deg,transparent,#a78bfa,#00e8ff,#a78bfa,transparent)',
-                  boxShadow:'0 0 14px #a78bfa',
+                  background:'linear-gradient(90deg,transparent,#a78bfa,#c4b5fd,#a78bfa,transparent)',
+                  boxShadow:'0 0 14px #7c3aed',
                   animation:'barcodeScan 2.4s ease-in-out infinite',
-                  opacity: inputFocused ? .9 : .35,
-                  transition:'opacity .3s',
+                  opacity: inputFocused ? .9 : .35, transition:'opacity .3s',
                 }} />
+                <div aria-hidden style={{ position:'absolute', inset:0, opacity:.05, pointerEvents:'none', background:'repeating-linear-gradient(90deg,#a78bfa 0,#a78bfa 2px,transparent 2px,transparent 6px)' }} />
 
-                {/* faux barcode lines decoration */}
-                <div aria-hidden style={{
-                  position:'absolute', inset:0, opacity:.05, pointerEvents:'none',
-                  background:'repeating-linear-gradient(90deg,#a78bfa 0,#a78bfa 2px,transparent 2px,transparent 6px)',
-                }} />
-
-                {/* label */}
-                <div style={{
-                  display:'flex', alignItems:'center', gap:8, marginBottom:10,
-                  fontFamily:'DM Mono,monospace', fontSize:10, letterSpacing:'1.5px',
-                  textTransform:'uppercase', color:'#7c3aed',
-                }}>
+                <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:10, fontFamily:'monospace', fontSize:10, letterSpacing:'1.5px', textTransform:'uppercase', color:'#5b21b6' }}>
                   <span style={{ fontSize:14 }}>⌨️</span>
                   Barcode Number · must match product ID
-                  <span style={{
-                    marginLeft:'auto', padding:'2px 7px', borderRadius:6,
-                    background:'rgba(167,139,250,.12)', border:'1px solid rgba(167,139,250,.25)',
-                    color:'#a78bfa', fontSize:9, letterSpacing:'.6px',
-                  }}>
+                  <span style={{ marginLeft:'auto', padding:'2px 7px', borderRadius:6, background:'rgba(124,58,237,.12)', border:'1px solid rgba(124,58,237,.25)', color:'#a78bfa', fontSize:9, letterSpacing:'.6px' }}>
                     {barcodeInput.length}/13
                   </span>
                 </div>
 
-                {/* the actual input */}
                 <input
-                  ref={barcodeFieldRef}
-                  type="text"
-                  inputMode="numeric"
-                  autoComplete="off"
-                  spellCheck={false}
-                  maxLength={20}
+                  ref={barcodeFieldRef} type="text" inputMode="numeric"
+                  autoComplete="off" spellCheck={false} maxLength={20}
                   value={barcodeInput}
                   onFocus={() => setInputFocused(true)}
-                  onBlur={()  => setInputFocused(false)}
+                  onBlur={() => setInputFocused(false)}
                   onChange={e => setBarcodeInput(e.target.value.replace(/\s+/g,''))}
                   onKeyDown={e => { if (e.key === 'Enter') submitBarcode() }}
                   placeholder="0000000000000"
                   style={{
                     width:'100%', background:'transparent', border:'none', outline:'none',
-                    color:'#e9d5ff', fontFamily:'DM Mono,monospace',
+                    color:'#e9d5ff', fontFamily:'monospace',
                     fontSize:30, fontWeight:600, letterSpacing:'8px',
                     textAlign:'center', padding:'10px 0 14px',
-                    caretColor:'#00e8ff',
+                    caretColor:'#a78bfa',
                     textShadow: inputFocused ? '0 0 18px rgba(167,139,250,.45)' : 'none',
                     transition:'text-shadow .3s',
                   }}
                 />
 
-                {/* digit cells preview */}
-                <div style={{
-                  display:'flex', justifyContent:'center', gap:6, marginTop:4, flexWrap:'wrap',
-                }}>
+                <div style={{ display:'flex', justifyContent:'center', gap:6, marginTop:4, flexWrap:'wrap' }}>
                   {Array.from({ length: Math.max(13, barcodeInput.length) }).map((_, i) => {
                     const ch = barcodeInput[i]
                     const filled = ch !== undefined
@@ -332,11 +313,11 @@ function ScanCapture({ onVerified, scanning, setScanning }) {
                       <div key={i} style={{
                         width:18, height:24, borderRadius:5,
                         display:'flex', alignItems:'center', justifyContent:'center',
-                        fontFamily:'DM Mono,monospace', fontSize:13, fontWeight:700,
-                        color: filled ? '#e9d5ff' : '#2d4a66',
-                        background: filled ? 'rgba(167,139,250,.16)' : 'rgba(255,255,255,.025)',
-                        border:`1px solid ${filled ? 'rgba(167,139,250,.4)' : isCaret ? 'rgba(0,232,255,.55)' : '#162f56'}`,
-                        boxShadow: isCaret ? '0 0 10px rgba(0,232,255,.4)' : 'none',
+                        fontFamily:'monospace', fontSize:13, fontWeight:700,
+                        color: filled ? '#e9d5ff' : '#3b1f6a',
+                        background: filled ? 'rgba(124,58,237,.16)' : 'rgba(255,255,255,.02)',
+                        border:`1px solid ${filled ? 'rgba(124,58,237,.4)' : isCaret ? 'rgba(167,139,250,.55)' : 'rgba(109,40,217,.15)'}`,
+                        boxShadow: isCaret ? '0 0 10px rgba(167,139,250,.4)' : 'none',
                         animation: filled ? `cellPop .25s cubic-bezier(.34,1.56,.64,1) both` : isCaret ? 'caretBlink 1s ease-in-out infinite' : 'none',
                         transition:'background .2s,border-color .2s',
                       }}>
@@ -348,28 +329,20 @@ function ScanCapture({ onVerified, scanning, setScanning }) {
               </div>
             </div>
 
-            {/* hint + submit */}
             <div style={{ display:'flex', alignItems:'center', gap:10, marginTop:12 }}>
-              <span style={{
-                flex:1, fontFamily:'DM Mono,monospace', fontSize:10, color:'#2d4a66',
-                letterSpacing:'.6px',
-              }}>
+              <span style={{ flex:1, fontFamily:'monospace', fontSize:10, color:'#4c1d95', letterSpacing:'.6px' }}>
                 ⏎ press <span style={{ color:'#a78bfa' }}>Enter</span> or click verify · {barcodeInput.trim().length<4?'min 4 chars':'ready'}
               </span>
-              <button
-                onClick={submitBarcode}
-                disabled={barcodeInput.trim().length<4 || scanning}
+              <button onClick={submitBarcode} disabled={barcodeInput.trim().length<4 || scanning}
                 style={{
                   padding:'10px 16px', borderRadius:10, cursor: barcodeInput.trim().length<4||scanning?'not-allowed':'pointer',
-                  fontSize:12, fontWeight:700, fontFamily:'DM Mono,monospace', letterSpacing:'.6px',
-                  border:'1px solid rgba(167,139,250,.4)',
-                  background: barcodeInput.trim().length<4||scanning
-                    ? 'rgba(167,139,250,.05)'
-                    : 'linear-gradient(135deg,#a78bfa,#7c3aed)',
+                  fontSize:12, fontWeight:700, fontFamily:'monospace', letterSpacing:'.6px',
+                  border:'1px solid rgba(124,58,237,.4)',
+                  background: barcodeInput.trim().length<4||scanning ? 'rgba(124,58,237,.05)' : 'linear-gradient(135deg,#7c3aed,#5b21b6)',
                   color: barcodeInput.trim().length<4||scanning ? '#5b21b6' : '#fff',
                   opacity: barcodeInput.trim().length<4||scanning ? .5 : 1,
                   transition:'transform .15s, box-shadow .25s',
-                  boxShadow: barcodeInput.trim().length>=4 && !scanning ? '0 4px 22px rgba(167,139,250,.4)' : 'none',
+                  boxShadow: barcodeInput.trim().length>=4 && !scanning ? '0 4px 22px rgba(124,58,237,.4)' : 'none',
                 }}
                 onMouseOver={e => { if(barcodeInput.trim().length>=4 && !scanning) e.currentTarget.style.transform='translateY(-1px)' }}
                 onMouseOut={e => e.currentTarget.style.transform='none'}
@@ -384,9 +357,9 @@ function ScanCapture({ onVerified, scanning, setScanning }) {
         {step==='verifying' && (
           <div style={{ padding:'24px 20px',display:'flex',flexDirection:'column',alignItems:'center',gap:12 }}>
             <div style={{ display:'flex',gap:4 }}>
-              {[0,.15,.3].map(d => <div key={d} style={{ width:7,height:7,borderRadius:'50%',background:'#f5a623',animation:`bounce .9s ease-in-out ${d}s infinite` }} />)}
+              {[0,.15,.3].map(d => <div key={d} style={{ width:7,height:7,borderRadius:'50%',background:'#a78bfa',animation:`bounce .9s ease-in-out ${d}s infinite` }} />)}
             </div>
-            <span style={{ fontFamily:'DM Mono,monospace',fontSize:11,color:'#8faec8',letterSpacing:'.8px' }}>YOLO + OCR running…</span>
+            <span style={{ fontFamily:'monospace',fontSize:11,color:'#a78bfa',letterSpacing:'.8px' }}>YOLO + OCR running…</span>
           </div>
         )}
       </div>
@@ -394,69 +367,58 @@ function ScanCapture({ onVerified, scanning, setScanning }) {
   )
 }
 
+
 /* ── Cart item row ─────────────────────────────────────────── */
 function CartRow({ item, onRemove, onQtyChange, index }) {
-  const statusColor = { match: '#00e888', mismatch: '#ff3b4e', partial: '#f5a623' }
-  const sc = statusColor[item.type] || '#8faec8'
+  const statusColor = { match: '#86efac', mismatch: '#fca5a5', partial: '#fcd34d' }
+  const sc = statusColor[item.type] || '#c4b5fd'
 
   return (
-    <div style={{ display:'flex',alignItems:'center',gap:12,padding:'14px 20px',borderBottom:'1px solid rgba(255,255,255,.04)',animation:'rowIn .35s ease both',animationDelay:`${index*.04}s`,opacity:item.type==='mismatch'?.55:1 }}>
-      {/* status dot */}
+    <div style={{ display:'flex',alignItems:'center',gap:12,padding:'14px 20px',borderBottom:'1px solid rgba(109,40,217,.1)',animation:'rowIn .35s ease both',animationDelay:`${index*.04}s`,opacity:item.type==='mismatch'?.55:1 }}>
       <div style={{ width:8,height:8,borderRadius:'50%',background:sc,boxShadow:`0 0 8px ${sc}`,flexShrink:0 }} />
-
-      {/* thumbnail placeholder */}
-      <div style={{ width:40,height:40,borderRadius:9,overflow:'hidden',background:'#0c1628',border:'1px solid #162f56',flexShrink:0,display:'flex',alignItems:'center',justifyContent:'center',fontSize:18 }}>
+      <div style={{ width:40,height:40,borderRadius:9,overflow:'hidden',background:'rgba(8,3,18,.6)',border:'1px solid rgba(109,40,217,.2)',flexShrink:0,display:'flex',alignItems:'center',justifyContent:'center',fontSize:18 }}>
         {item.productThumb
           ? <img src={item.productThumb} alt="" style={{ width:'100%',height:'100%',objectFit:'cover' }} />
           : '📦'}
       </div>
-
-      {/* info */}
       <div style={{ flex:1,minWidth:0 }}>
-        <div style={{ fontFamily:'Syne,sans-serif',fontSize:13,fontWeight:700,color:item.type==='mismatch'?'#ff3b4e':'#c8dff5',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap' }}>
+        <div style={{ fontFamily:"'Sora',sans-serif",fontSize:13,fontWeight:700,color:item.type==='mismatch'?'#fca5a5':'#e9d5ff',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap' }}>
           {item.productName || item.barcode || 'Unknown item'}
         </div>
-        <div style={{ fontFamily:'DM Mono,monospace',fontSize:10,color:'#2d4a66',marginTop:2,letterSpacing:'.5px' }}>
+        <div style={{ fontFamily:'monospace',fontSize:10,color:'#4c1d95',marginTop:2,letterSpacing:'.5px' }}>
           {item.barcode || '—'} · {item.type==='match'?'Verified ✓':item.type==='mismatch'?'⚠ Fraud flag':'Partial ⚠'}
         </div>
       </div>
-
-      {/* qty */}
       <div style={{ display:'flex',alignItems:'center',gap:6,flexShrink:0 }}>
-        <button onClick={() => onQtyChange(item.id, -1)} style={{ width:22,height:22,borderRadius:6,border:'1px solid #162f56',background:'rgba(255,255,255,.04)',color:'#8faec8',fontSize:13,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',fontWeight:700 }}>−</button>
-        <span style={{ fontFamily:'DM Mono,monospace',fontSize:13,color:'#c8dff5',minWidth:18,textAlign:'center' }}>{item.qty}</span>
-        <button onClick={() => onQtyChange(item.id, +1)} style={{ width:22,height:22,borderRadius:6,border:'1px solid #162f56',background:'rgba(255,255,255,.04)',color:'#8faec8',fontSize:13,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',fontWeight:700 }}>+</button>
+        <button onClick={() => onQtyChange(item.id, -1)} style={{ width:22,height:22,borderRadius:6,border:'1px solid rgba(109,40,217,.25)',background:'rgba(109,40,217,.06)',color:'#a78bfa',fontSize:13,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',fontWeight:700 }}>−</button>
+        <span style={{ fontFamily:'monospace',fontSize:13,color:'#e9d5ff',minWidth:18,textAlign:'center' }}>{item.qty}</span>
+        <button onClick={() => onQtyChange(item.id, +1)} style={{ width:22,height:22,borderRadius:6,border:'1px solid rgba(109,40,217,.25)',background:'rgba(109,40,217,.06)',color:'#a78bfa',fontSize:13,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',fontWeight:700 }}>+</button>
       </div>
-
-      {/* price */}
-      <div style={{ fontFamily:'DM Mono,monospace',fontSize:14,fontWeight:600,color:sc,flexShrink:0,minWidth:68,textAlign:'right' }}>
+      <div style={{ fontFamily:'monospace',fontSize:14,fontWeight:600,color:sc,flexShrink:0,minWidth:68,textAlign:'right' }}>
         {item.price ? `₹${(item.price * item.qty).toFixed(2)}` : '—'}
       </div>
-
-      {/* remove */}
-      <button onClick={() => onRemove(item.id)} style={{ width:22,height:22,borderRadius:6,border:'none',background:'rgba(255,59,78,.1)',color:'#ff3b4e',fontSize:11,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0 }}>✕</button>
+      <button onClick={() => onRemove(item.id)} style={{ width:22,height:22,borderRadius:6,border:'none',background:'rgba(252,165,165,.1)',color:'#fca5a5',fontSize:11,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0 }}>✕</button>
     </div>
   )
 }
+
 
 /* ── Main Transaction Page ───────────────────────────────── */
 export default function TransactionPage({ user, setUser }) {
   const navigate  = useNavigate()
   const location  = useLocation()
 
-  /* first product passed from home.jsx via navigate state */
   const initialMatch = location.state?.matchResult || null
   const initialBarcode = location.state?.barcode   || null
   const initialProduct = location.state?.product   || null
 
   const [cart, setCart]           = useState([])
   const [scanning, setScanning]   = useState(false)
-  const [scannerOpen, setScannerOpen] = useState(false)   // gates ScanCapture; only visible after "Add Another Item"
+  const [scannerOpen, setScannerOpen] = useState(false)
   const [toast, setToast]         = useState({ msg:'', type:'', show:false })
   const [paid, setPaid]           = useState(false)
   const [fraudCount, setFraudCount] = useState(0)
 
-  /* seed cart from the already-verified item that came from home.jsx */
   useEffect(() => {
     if (initialMatch && initialMatch.match !== false) {
       const type = !initialMatch.found ? 'mismatch'
@@ -482,7 +444,6 @@ export default function TransactionPage({ user, setUser }) {
 
   function addToCart(item) {
     setCart(prev => {
-      /* merge quantity if same barcode already in cart */
       const existing = prev.findIndex(c => c.barcode && c.barcode === item.barcode)
       if (existing >= 0) {
         const next = [...prev]
@@ -493,10 +454,9 @@ export default function TransactionPage({ user, setUser }) {
     })
   }
 
-  /* called by ScanCapture after each verify round */
   const handleVerified = useCallback(async (data, barcodeValue, productB64, errMsg) => {
     if (errMsg || !data) {
-      showToast(`❌ Verification failed${errMsg ? ': ' + errMsg : ''}`, 'error')
+      showToast(`Verification failed${errMsg ? ': ' + errMsg : ''}`, 'error')
       return
     }
 
@@ -518,22 +478,19 @@ export default function TransactionPage({ user, setUser }) {
 
     if (type === 'mismatch') {
       setFraudCount(f => f + 1)
-      showToast(`🚨 Fraud detected — ${data.fraud_type || 'mismatch'} · Item flagged`, 'error')
+      showToast(`Fraud detected — ${data.fraud_type || 'mismatch'} · Item flagged`, 'error')
     } else if (type === 'partial') {
-      showToast(`⚠️ Partial match — ${data.product_name} · Adding with flag`, 'warn')
+      showToast(`Partial match — ${data.product_name} · Adding with flag`, 'warn')
     } else {
-      showToast(`✅ ${data.product_name} verified · Added to cart`, 'success')
+      showToast(`${data.product_name} verified · Added to cart`, 'success')
     }
 
     addToCart(item)
-    setScannerOpen(false)   // collapse scanner; user must click "Add Another Item" to scan next
+    setScannerOpen(false)
   }, [])
 
   function handleQtyChange(id, delta) {
-    setCart(prev => prev.map(c => c.id === id
-      ? { ...c, qty: Math.max(1, c.qty + delta) }
-      : c
-    ))
+    setCart(prev => prev.map(c => c.id === id ? { ...c, qty: Math.max(1, c.qty + delta) } : c))
   }
 
   function handleRemove(id) {
@@ -546,53 +503,47 @@ export default function TransactionPage({ user, setUser }) {
   const gst           = subtotal * 0.18
   const total         = subtotal + gst
 
+
   async function handlePay() {
     if (cart.length === 0) return
     if (verifiedItems.length === 0) {
       showToast('Cannot pay — no verified items in cart.', 'error')
       return
     }
-
-    setScanning(true)   // reuse the global "processing" spinner on the Pay button
-
+    setScanning(true)
     try {
       const payload = {
         items: verifiedItems
-          .filter(c => c.barcode)         // need a barcode to decrement DB stock
+          .filter(c => c.barcode)
           .map(c => ({ barcode: c.barcode, qty: c.qty })),
       }
-
       const res = await fetch('/api/checkout/pay', {
-        method:  'POST',
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify(payload),
       })
       const data = await res.json().catch(() => ({}))
-
       if (!res.ok || !data.ok) {
         const reason =
           data?.notFound?.length      ? `${data.notFound.length} item(s) missing from inventory`
         : data?.insufficient?.length  ? `${data.insufficient.length} item(s) had insufficient stock`
         :                                (data?.message || `Server error ${res.status}`)
-        showToast(`❌ Payment failed — ${reason}`, 'error')
+        showToast(`Payment failed — ${reason}`, 'error')
         setScanning(false)
         return
       }
-
-      // Success path — show low-stock toast (if any) then mark paid.
       if (Array.isArray(data.lowStock) && data.lowStock.length > 0) {
         const names = data.lowStock.map(p => p.product_name).join(', ')
-        showToast(`⚠️ Low stock — email sent · ${names}`, 'warn')
+        showToast(`Low stock — email sent · ${names}`, 'warn')
       } else {
-        showToast('✅ Transaction complete — receipt generated', 'success')
+        showToast('Transaction complete — receipt generated', 'success')
       }
-
       setScanning(false)
       setPaid(true)
       setTimeout(() => navigate('/home'), 3200)
     } catch (err) {
-      showToast(`❌ Payment error: ${err.message}`, 'error')
+      showToast(`Payment error: ${err.message}`, 'error')
       setScanning(false)
     }
   }
@@ -602,213 +553,196 @@ export default function TransactionPage({ user, setUser }) {
     setUser(null); navigate('/')
   }
 
-  /* ── Paid screen ─────────────────────────────────────────── */
+  /* ── Paid screen ── */
   if (paid) return (
     <>
       <style>{globalCSS}</style>
-      <div style={{ minHeight:'100vh',background:'#04080f',display:'flex',alignItems:'center',justifyContent:'center',flexDirection:'column',gap:24,fontFamily:'DM Mono,monospace' }}>
+      <div style={{ minHeight:'100vh',background:'#000',display:'flex',alignItems:'center',justifyContent:'center',flexDirection:'column',gap:16 }}>
+        <div style={{ position:'fixed',inset:0,background:'radial-gradient(ellipse 75% 55% at 50% 50%, rgba(109,40,217,.15) 0%, transparent 70%)',pointerEvents:'none' }} />
         <div style={{ fontSize:64,animation:'popIn .5s cubic-bezier(.34,1.56,.64,1) both' }}>✅</div>
-        <div style={{ fontFamily:'Syne,sans-serif',fontSize:28,fontWeight:800,color:'#00e888',animation:'popIn .5s .1s cubic-bezier(.34,1.56,.64,1) both' }}>Payment Complete</div>
-        <div style={{ fontSize:13,color:'#2d4a66',animation:'popIn .5s .2s cubic-bezier(.34,1.56,.64,1) both' }}>₹{total.toFixed(2)} · {verifiedItems.length} item{verifiedItems.length!==1?'s':''} · Redirecting…</div>
+        <div style={{ fontFamily:"'Sora',sans-serif",fontSize:28,fontWeight:800,color:'#86efac',animation:'popIn .5s .1s cubic-bezier(.34,1.56,.64,1) both' }}>Payment Complete</div>
+        <div style={{ fontSize:13,color:'#4c1d95',animation:'popIn .5s .2s cubic-bezier(.34,1.56,.64,1) both' }}>₹{total.toFixed(2)} · {verifiedItems.length} item{verifiedItems.length!==1?'s':''} · Redirecting…</div>
       </div>
     </>
   )
+
 
   return (
     <>
       <style>{globalCSS}</style>
 
-      {/* Ambient background */}
-      <div style={{ position:'fixed',inset:0,zIndex:0,background:'#04080f' }} />
-      <div style={{ position:'fixed',inset:0,zIndex:0,backgroundImage:'linear-gradient(rgba(0,232,255,.018) 1px,transparent 1px),linear-gradient(90deg,rgba(0,232,255,.018) 1px,transparent 1px)',backgroundSize:'44px 44px' }} />
-      <RingOrb size={500} color="#00e8ff" style={{ top:-200,right:-160,opacity:.5 }} />
-      <RingOrb size={340} color="#a78bfa" style={{ bottom:-120,left:-80,opacity:.45 }} />
+      {/* Background */}
+      <div style={{ position:'fixed',inset:0,zIndex:0,background:'#000' }} />
+      <div style={{ position:'fixed',inset:0,zIndex:0,background:'radial-gradient(ellipse 75% 55% at 50% -5%, rgba(109,40,217,.18) 0%, transparent 70%)',pointerEvents:'none' }} />
+      <div style={{ position:'fixed',inset:0,zIndex:0,background:'radial-gradient(ellipse 90% 50% at 50% 120%, rgba(76,29,149,.1) 0%, transparent 60%)',pointerEvents:'none' }} />
+      <div style={{ position:'fixed',top:60,left:0,right:0,height:1,background:'linear-gradient(to right, transparent, rgba(109,40,217,.25), transparent)',zIndex:1,pointerEvents:'none' }} />
+      <ParticleField />
 
       {/* Topbar */}
-      <header style={{ position:'sticky',top:0,zIndex:100,display:'flex',alignItems:'center',justifyContent:'space-between',padding:'0 24px',height:54,background:'rgba(4,8,15,.95)',borderBottom:'1px solid #0e1e38',backdropFilter:'blur(20px)' }}>
+      <header style={{ position:'sticky',top:0,zIndex:100,display:'flex',alignItems:'center',justifyContent:'space-between',padding:'0 24px',height:60,background:'rgba(0,0,0,.72)',borderBottom:'1px solid rgba(109,40,217,.2)',backdropFilter:'blur(22px)' }}>
         <div style={{ display:'flex',alignItems:'center',gap:10 }}>
-          <div style={{ width:32,height:32,borderRadius:8,background:'linear-gradient(135deg,#00e8ff,#6d28d9)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:16 }}>🛒</div>
-          <span style={{ fontFamily:'Syne,sans-serif',fontSize:15,fontWeight:800,letterSpacing:'-.3px',background:'linear-gradient(90deg,#00e8ff,#7c3aed)',WebkitBackgroundClip:'text',WebkitTextFillColor:'transparent' }}>SmartRetail</span>
-          <span style={{ fontFamily:'DM Mono,monospace',fontSize:10,color:'#2d4a66',letterSpacing:'1.5px',textTransform:'uppercase',marginLeft:4 }}>/ Transaction</span>
+          <div style={{ width:34,height:34,borderRadius:9,background:'linear-gradient(135deg,#7c3aed,#4c1d95)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:16,boxShadow:'0 0 18px rgba(124,58,237,.5)' }}>🛒</div>
+          <div>
+            <span style={{ fontFamily:"'Sora',sans-serif",fontSize:16,fontWeight:800,letterSpacing:'-.3px',color:'#fff' }}>Nyatik<span style={{ color:'#a78bfa' }}>Nayan</span></span>
+            <span style={{ fontFamily:'monospace',fontSize:9,color:'#4c1d95',letterSpacing:'1.5px',textTransform:'uppercase',marginLeft:8 }}>/ Transaction</span>
+          </div>
         </div>
         <div style={{ display:'flex',alignItems:'center',gap:8 }}>
-          <div style={{ width:6,height:6,borderRadius:'50%',background:'#00e888',boxShadow:'0 0 8px #00e888',animation:'blink 2s ease-in-out infinite' }} />
-          <span style={{ fontFamily:'DM Mono,monospace',fontSize:10,color:'#2d4a66',letterSpacing:'1px',textTransform:'uppercase' }}>Live Session</span>
+          <div style={{ width:6,height:6,borderRadius:'50%',background:'#86efac',boxShadow:'0 0 8px #86efac',animation:'blink 2s ease-in-out infinite' }} />
+          <span style={{ fontFamily:'monospace',fontSize:10,color:'#4c1d95',letterSpacing:'1px',textTransform:'uppercase' }}>Live Session</span>
         </div>
         <div style={{ display:'flex',gap:8 }}>
-          <button onClick={() => navigate('/home')} style={{ padding:'4px 12px',borderRadius:16,fontSize:11,fontFamily:'DM Mono,monospace',background:'transparent',border:'1px solid #162f56',color:'#2d4a66',cursor:'pointer' }}>← Home</button>
-          <button onClick={logout} style={{ padding:'4px 12px',borderRadius:16,fontSize:11,fontFamily:'DM Mono,monospace',background:'rgba(255,59,78,.1)',border:'1px solid rgba(255,59,78,.2)',color:'#ff3b4e',cursor:'pointer' }}>Sign Out</button>
+          <button onClick={() => navigate('/home')} style={{ padding:'5px 14px',borderRadius:20,fontSize:11,fontFamily:"'Sora',sans-serif",background:'transparent',border:'1px solid rgba(109,40,217,.3)',color:'#6d28d9',cursor:'pointer',transition:'all .2s' }}>← Home</button>
+          <button onClick={logout} style={{ padding:'6px 16px',borderRadius:20,fontSize:12,fontWeight:700,fontFamily:"'Sora',sans-serif",background:'linear-gradient(135deg,#7c3aed,#5b21b6)',color:'#fff',border:'none',cursor:'pointer',boxShadow:'0 0 16px rgba(124,58,237,.35)' }}>Sign Out</button>
         </div>
       </header>
 
-      {/* Main layout */}
-      <div style={{ position:'relative',zIndex:1,display:'grid',gridTemplateColumns:'1fr 380px',gap:20,padding:'20px 24px',maxWidth:1380,margin:'0 auto',minHeight:'calc(100vh - 54px)',alignItems:'start' }}>
 
-        {/* ── Left: Cart ─────────────────────────────────────── */}
+      {/* Main layout */}
+      <div style={{ position:'relative',zIndex:1,display:'grid',gridTemplateColumns:'1fr 380px',gap:20,padding:'20px 24px',maxWidth:1380,margin:'0 auto',minHeight:'calc(100vh - 60px)',alignItems:'start' }}>
+
+        {/* Left: Cart */}
         <div style={{ display:'flex',flexDirection:'column',gap:16 }}>
 
-          {/* Section label */}
-          <div style={{ display:'flex',alignItems:'center',gap:8,fontFamily:'DM Mono,monospace',fontSize:10,fontWeight:600,letterSpacing:'2px',textTransform:'uppercase',color:'#2d4a66' }}>
-            Cart <div style={{ flex:1,height:1,background:'#0e1e38' }} />
-            <span style={{ padding:'2px 8px',borderRadius:6,background:'rgba(0,232,255,.08)',border:'1px solid rgba(0,232,255,.15)',color:'#00e8ff',fontSize:10 }}>{cart.length} item{cart.length!==1?'s':''}</span>
+          <div style={{ display:'flex',alignItems:'center',gap:8,fontFamily:'monospace',fontSize:10,fontWeight:600,letterSpacing:'2px',textTransform:'uppercase',color:'#4c1d95' }}>
+            Cart <div style={{ flex:1,height:1,background:'rgba(109,40,217,.15)' }} />
+            <span style={{ padding:'2px 8px',borderRadius:6,background:'rgba(109,40,217,.08)',border:'1px solid rgba(109,40,217,.2)',color:'#a78bfa',fontSize:10 }}>{cart.length} item{cart.length!==1?'s':''}</span>
           </div>
 
           {/* Cart card */}
-          <div style={{ background:'#080f1e',border:'1px solid #0e1e38',borderRadius:20,overflow:'hidden',position:'relative',animation:'cardIn .6s cubic-bezier(.22,1,.36,1) both' }}>
-            <div style={{ position:'absolute',top:0,left:0,right:0,height:1,background:'linear-gradient(90deg,transparent,#00e8ff,transparent)',animation:'shimmer 3s ease-in-out infinite' }} />
-
-            {/* cart header */}
-            <div style={{ padding:'14px 20px',borderBottom:'1px solid #0e1e38',display:'flex',alignItems:'center',justifyContent:'space-between',background:'rgba(0,0,0,.2)' }}>
-              <span style={{ fontFamily:'Syne,sans-serif',fontSize:14,fontWeight:700,color:'#c8dff5' }}>Session Cart</span>
-              <div style={{ display:'flex',gap:16,fontFamily:'DM Mono,monospace',fontSize:11 }}>
-                <span style={{ color:'#00e888' }}>✓ {verifiedItems.length} verified</span>
-                {flaggedItems.length > 0 && <span style={{ color:'#ff3b4e' }}>⚠ {flaggedItems.length} flagged</span>}
+          <div style={{ background:'rgba(8,3,18,.88)',border:'1px solid rgba(109,40,217,.22)',borderRadius:20,overflow:'hidden',position:'relative',backdropFilter:'blur(14px)',animation:'cardIn .6s cubic-bezier(.22,1,.36,1) both' }}>
+            <div style={{ position:'absolute',top:0,left:0,right:0,height:1,background:'linear-gradient(90deg,transparent,#7c3aed,transparent)',animation:'shimmer 3s ease-in-out infinite' }} />
+            <div style={{ padding:'14px 20px',borderBottom:'1px solid rgba(109,40,217,.15)',display:'flex',alignItems:'center',justifyContent:'space-between',background:'rgba(0,0,0,.3)' }}>
+              <span style={{ fontFamily:"'Sora',sans-serif",fontSize:14,fontWeight:700,color:'#e9d5ff' }}>Session Cart</span>
+              <div style={{ display:'flex',gap:16,fontFamily:'monospace',fontSize:11 }}>
+                <span style={{ color:'#86efac' }}>✓ {verifiedItems.length} verified</span>
+                {flaggedItems.length > 0 && <span style={{ color:'#fca5a5' }}>⚠ {flaggedItems.length} flagged</span>}
               </div>
             </div>
-
-            {/* rows */}
             <div style={{ minHeight:120,maxHeight:420,overflowY:'auto' }}>
               {cart.length === 0
                 ? (
-                  <div style={{ padding:'40px 20px',textAlign:'center',color:'#2d4a66',fontFamily:'DM Mono,monospace',fontSize:12 }}>
+                  <div style={{ padding:'40px 20px',textAlign:'center',color:'#4c1d95',fontFamily:'monospace',fontSize:12 }}>
                     <div style={{ fontSize:32,marginBottom:10,opacity:.3 }}>🛒</div>
                     No items yet — scan a product below
                   </div>
                 )
                 : cart.map((item, i) => (
-                  <CartRow key={item.id} item={item} index={i}
-                    onRemove={handleRemove}
-                    onQtyChange={handleQtyChange} />
+                  <CartRow key={item.id} item={item} index={i} onRemove={handleRemove} onQtyChange={handleQtyChange} />
                 ))
               }
             </div>
-
-            {/* fraud summary banner */}
             {flaggedItems.length > 0 && (
-              <div style={{ margin:'0 16px 16px',padding:'10px 14px',borderRadius:10,background:'rgba(255,59,78,.06)',border:'1px solid rgba(255,59,78,.2)',fontFamily:'DM Mono,monospace',fontSize:11,color:'#ff3b4e',lineHeight:1.6 }}>
+              <div style={{ margin:'0 16px 16px',padding:'10px 14px',borderRadius:10,background:'rgba(252,165,165,.06)',border:'1px solid rgba(252,165,165,.22)',fontFamily:'monospace',fontSize:11,color:'#fca5a5',lineHeight:1.6 }}>
                 ⚠️ {flaggedItems.length} item{flaggedItems.length!==1?'s':''} flagged for fraud. Review before payment.
               </div>
             )}
           </div>
 
-          {/* Scan capture card */}
-          <div style={{ display:'flex',alignItems:'center',gap:8,fontFamily:'DM Mono,monospace',fontSize:10,fontWeight:600,letterSpacing:'2px',textTransform:'uppercase',color:'#2d4a66',marginTop:4 }}>
-            Next Item Scan <div style={{ flex:1,height:1,background:'#0e1e38' }} />
-            {scanning && <span style={{ color:'#f5a623',fontSize:10,animation:'blink 1s ease-in-out infinite' }}>● PROCESSING</span>}
+          {/* Scan section */}
+          <div style={{ display:'flex',alignItems:'center',gap:8,fontFamily:'monospace',fontSize:10,fontWeight:600,letterSpacing:'2px',textTransform:'uppercase',color:'#4c1d95',marginTop:4 }}>
+            Next Item Scan <div style={{ flex:1,height:1,background:'rgba(109,40,217,.15)' }} />
+            {scanning && <span style={{ color:'#a78bfa',fontSize:10,animation:'blink 1s ease-in-out infinite' }}>● PROCESSING</span>}
           </div>
 
           {scannerOpen ? (
             <>
               <ScanCapture onVerified={handleVerified} scanning={scanning} setScanning={setScanning} />
-              <button
-                onClick={() => { if (!scanning) setScannerOpen(false) }}
-                disabled={scanning}
-                style={{
-                  padding:'10px 18px', borderRadius:12, cursor: scanning ? 'not-allowed' : 'pointer',
-                  fontFamily:'DM Mono,monospace', fontSize:11, letterSpacing:'.8px',
-                  border:'1px solid #162f56', background:'transparent', color:'#2d4a66',
-                  alignSelf:'center', opacity: scanning ? .5 : 1, transition:'color .2s,border-color .2s',
-                }}
-                onMouseOver={e => { if (!scanning) { e.currentTarget.style.color='#c8dff5'; e.currentTarget.style.borderColor='#1a3a66' } }}
-                onMouseOut={e => { e.currentTarget.style.color='#2d4a66'; e.currentTarget.style.borderColor='#162f56' }}
+              <button onClick={() => { if (!scanning) setScannerOpen(false) }} disabled={scanning}
+                style={{ padding:'10px 18px',borderRadius:12,cursor:scanning?'not-allowed':'pointer',fontFamily:'monospace',fontSize:11,letterSpacing:'.8px',border:'1px solid rgba(109,40,217,.25)',background:'transparent',color:'#4c1d95',alignSelf:'center',opacity:scanning?.5:1,transition:'color .2s,border-color .2s' }}
+                onMouseOver={e => { if (!scanning) { e.currentTarget.style.color='#e9d5ff'; e.currentTarget.style.borderColor='rgba(124,58,237,.5)' } }}
+                onMouseOut={e => { e.currentTarget.style.color='#4c1d95'; e.currentTarget.style.borderColor='rgba(109,40,217,.25)' }}
               >
                 ✕ Cancel scan
               </button>
-              <div style={{ fontFamily:'DM Mono,monospace',fontSize:10,color:'#1a2d45',textAlign:'center',letterSpacing:'.8px' }}>
-                After verification the scanner closes — click "Add Another Item" to scan the next product
-              </div>
             </>
           ) : (
-            <button
-              onClick={() => setScannerOpen(true)}
-              disabled={scanning || paid}
+            <button onClick={() => setScannerOpen(true)} disabled={scanning || paid}
               style={{
-                padding:'18px 22px', borderRadius:14, border:'1.5px dashed rgba(0,232,255,.35)',
-                cursor: scanning || paid ? 'not-allowed' : 'pointer',
-                fontFamily:"'Syne', sans-serif", fontSize:14, fontWeight:700, letterSpacing:'.3px',
-                background:'rgba(0,232,255,.05)', color:'#00e8ff',
-                display:'flex', alignItems:'center', justifyContent:'center', gap:10,
+                padding:'18px 22px',borderRadius:14,border:'1.5px dashed rgba(124,58,237,.35)',
+                cursor:scanning||paid?'not-allowed':'pointer',
+                fontFamily:"'Sora',sans-serif",fontSize:14,fontWeight:700,letterSpacing:'.3px',
+                background:'rgba(109,40,217,.05)',color:'#a78bfa',
+                display:'flex',alignItems:'center',justifyContent:'center',gap:10,
                 transition:'background .2s, border-color .2s, transform .15s',
-                opacity: scanning || paid ? .4 : 1,
+                opacity:scanning||paid?.4:1,
               }}
-              onMouseOver={e => { if (!scanning && !paid) { e.currentTarget.style.background='rgba(0,232,255,.1)'; e.currentTarget.style.borderColor='rgba(0,232,255,.6)'; e.currentTarget.style.transform='translateY(-1px)' } }}
-              onMouseOut={e => { e.currentTarget.style.background='rgba(0,232,255,.05)'; e.currentTarget.style.borderColor='rgba(0,232,255,.35)'; e.currentTarget.style.transform='none' }}
+              onMouseOver={e => { if(!scanning&&!paid) { e.currentTarget.style.background='rgba(109,40,217,.1)'; e.currentTarget.style.borderColor='rgba(124,58,237,.6)'; e.currentTarget.style.transform='translateY(-1px)' } }}
+              onMouseOut={e => { e.currentTarget.style.background='rgba(109,40,217,.05)'; e.currentTarget.style.borderColor='rgba(124,58,237,.35)'; e.currentTarget.style.transform='none' }}
             >
               <span style={{ fontSize:18 }}>＋</span>
               {cart.length === 0 ? 'Scan First Item' : 'Add Another Item'}
-              <span style={{ fontFamily:'DM Mono,monospace', fontSize:10, color:'#2d4a66', letterSpacing:'1px', marginLeft:6 }}>
-                · re-runs YOLO + OCR
-              </span>
+              <span style={{ fontFamily:'monospace',fontSize:10,color:'#4c1d95',letterSpacing:'1px',marginLeft:6 }}>· re-runs YOLO + OCR</span>
             </button>
           )}
         </div>
 
-        {/* ── Right: Summary ─────────────────────────────────── */}
-        <div style={{ display:'flex',flexDirection:'column',gap:14,position:'sticky',top:74 }}>
+
+        {/* Right: Summary */}
+        <div style={{ display:'flex',flexDirection:'column',gap:14,position:'sticky',top:80 }}>
 
           {/* Stats pills */}
           {[
-            { label:'Items in Cart',   value:cart.length,          color:'#00e8ff', icon:'📦' },
-            { label:'Verified',        value:verifiedItems.length, color:'#00e888', icon:'✅' },
-            { label:'Fraud Flagged',   value:flaggedItems.length,  color:'#ff3b4e', icon:'🚨' },
+            { label:'Items in Cart',   value:cart.length,          color:'#a78bfa', icon:'📦' },
+            { label:'Verified',        value:verifiedItems.length, color:'#86efac', icon:'✅' },
+            { label:'Fraud Flagged',   value:flaggedItems.length,  color:'#fca5a5', icon:'🚨' },
           ].map((s,i) => (
-            <div key={i} style={{ background:'#080f1e',border:'1px solid #0e1e38',borderRadius:14,padding:'14px 18px',display:'flex',alignItems:'center',justifyContent:'space-between',animation:`cardIn .5s ${.1+i*.08}s cubic-bezier(.22,1,.36,1) both` }}>
+            <div key={i} style={{ background:'rgba(8,3,18,.88)',border:'1px solid rgba(109,40,217,.22)',borderRadius:14,padding:'14px 18px',display:'flex',alignItems:'center',justifyContent:'space-between',backdropFilter:'blur(14px)',animation:`cardIn .5s ${.1+i*.08}s cubic-bezier(.22,1,.36,1) both` }}>
               <div>
-                <div style={{ fontFamily:'DM Mono,monospace',fontSize:9,letterSpacing:'1.5px',textTransform:'uppercase',color:'#2d4a66',marginBottom:4 }}>{s.label}</div>
-                <div style={{ fontFamily:'Syne,sans-serif',fontSize:24,fontWeight:800,color:s.color,lineHeight:1 }}>{s.value}</div>
+                <div style={{ fontFamily:'monospace',fontSize:9,letterSpacing:'1.5px',textTransform:'uppercase',color:'#4c1d95',marginBottom:4 }}>{s.label}</div>
+                <div style={{ fontFamily:"'Sora',sans-serif",fontSize:24,fontWeight:800,color:s.color,lineHeight:1 }}>{s.value}</div>
               </div>
-              <div style={{ width:34,height:34,borderRadius:9,background:'rgba(255,255,255,.04)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:17 }}>{s.icon}</div>
+              <div style={{ width:34,height:34,borderRadius:9,background:'rgba(109,40,217,.1)',border:'1px solid rgba(109,40,217,.2)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:17 }}>{s.icon}</div>
             </div>
           ))}
 
           {/* Bill summary */}
-          <div style={{ background:'#080f1e',border:'1px solid #0e1e38',borderRadius:16,overflow:'hidden',animation:'cardIn .6s .3s cubic-bezier(.22,1,.36,1) both' }}>
-            <div style={{ padding:'12px 18px',borderBottom:'1px solid #0e1e38',background:'rgba(0,0,0,.2)' }}>
-              <span style={{ fontFamily:'Syne,sans-serif',fontSize:13,fontWeight:700,color:'#c8dff5' }}>Bill Summary</span>
+          <div style={{ background:'rgba(8,3,18,.88)',border:'1px solid rgba(109,40,217,.22)',borderRadius:16,overflow:'hidden',backdropFilter:'blur(14px)',animation:'cardIn .6s .3s cubic-bezier(.22,1,.36,1) both' }}>
+            <div style={{ padding:'12px 18px',borderBottom:'1px solid rgba(109,40,217,.15)',background:'rgba(0,0,0,.3)' }}>
+              <span style={{ fontFamily:"'Sora',sans-serif",fontSize:13,fontWeight:700,color:'#e9d5ff' }}>Bill Summary</span>
             </div>
             <div style={{ padding:'14px 18px' }}>
               {[
-                ['Subtotal', `₹${subtotal.toFixed(2)}`, '#8faec8'],
-                ['GST (18%)', `₹${gst.toFixed(2)}`, '#8faec8'],
+                ['Subtotal', `₹${subtotal.toFixed(2)}`, '#c4b5fd'],
+                ['GST (18%)', `₹${gst.toFixed(2)}`, '#c4b5fd'],
               ].map(([k,v,c]) => (
-                <div key={k} style={{ display:'flex',justifyContent:'space-between',alignItems:'center',padding:'6px 0',borderBottom:'1px solid rgba(255,255,255,.04)',fontFamily:'DM Mono,monospace',fontSize:12 }}>
-                  <span style={{ color:'#2d4a66' }}>{k}</span>
+                <div key={k} style={{ display:'flex',justifyContent:'space-between',alignItems:'center',padding:'6px 0',borderBottom:'1px solid rgba(109,40,217,.08)',fontFamily:'monospace',fontSize:12 }}>
+                  <span style={{ color:'#4c1d95' }}>{k}</span>
                   <span style={{ color:c }}>{v}</span>
                 </div>
               ))}
-              <div style={{ display:'flex',justifyContent:'space-between',alignItems:'center',padding:'14px 0 4px',fontFamily:'DM Mono,monospace' }}>
-                <span style={{ fontSize:11,color:'#8faec8',letterSpacing:'1px',textTransform:'uppercase' }}>Total</span>
-                <span style={{ fontFamily:'Syne,sans-serif',fontSize:22,fontWeight:800,color:'#00e888' }}>₹{total.toFixed(2)}</span>
+              <div style={{ display:'flex',justifyContent:'space-between',alignItems:'center',padding:'14px 0 4px',fontFamily:'monospace' }}>
+                <span style={{ fontSize:11,color:'#a78bfa',letterSpacing:'1px',textTransform:'uppercase' }}>Total</span>
+                <span style={{ fontFamily:"'Sora',sans-serif",fontSize:22,fontWeight:800,color:'#86efac' }}>₹{total.toFixed(2)}</span>
               </div>
             </div>
           </div>
 
           {/* Pay button */}
-          <button onClick={handlePay}
-            disabled={cart.length === 0 || scanning}
+          <button onClick={handlePay} disabled={cart.length === 0 || scanning}
             style={{
               padding:'16px 20px',border:'none',borderRadius:14,cursor:cart.length===0||scanning?'not-allowed':'pointer',
-              fontFamily:'Syne,sans-serif',fontSize:16,fontWeight:800,letterSpacing:'.2px',
-              background:cart.length===0||scanning?'rgba(0,232,136,.1)':'linear-gradient(135deg,#00e888,#00b868)',
-              color:cart.length===0||scanning?'#2d4a66':'#04070d',
+              fontFamily:"'Sora',sans-serif",fontSize:16,fontWeight:800,letterSpacing:'.2px',
+              background:cart.length===0||scanning?'rgba(134,239,172,.08)':'linear-gradient(135deg,#7c3aed,#5b21b6)',
+              color:cart.length===0||scanning?'#4c1d95':'#fff',
               opacity:cart.length===0||scanning?.4:1,
               transition:'opacity .2s,transform .2s,box-shadow .2s',
-              boxShadow:cart.length>0&&!scanning?'0 4px 28px rgba(0,232,136,.3)':'none',
+              boxShadow:cart.length>0&&!scanning?'0 4px 32px rgba(124,58,237,.4)':'none',
               display:'flex',alignItems:'center',justifyContent:'center',gap:10,
             }}
             onMouseOver={e => { if(cart.length>0&&!scanning) e.currentTarget.style.transform='translateY(-2px)' }}
             onMouseOut={e => e.currentTarget.style.transform='none'}
           >
             {scanning
-              ? <><span style={{ width:16,height:16,border:'2px solid rgba(0,232,136,.25)',borderTopColor:'#00e888',borderRadius:'50%',animation:'spin .7s linear infinite',display:'inline-block' }} />Processing…</>
+              ? <><span style={{ width:16,height:16,border:'2px solid rgba(255,255,255,.25)',borderTopColor:'#fff',borderRadius:'50%',animation:'spin .7s linear infinite',display:'inline-block' }} />Processing…</>
               : '✅ Done & Pay'}
           </button>
 
-          {/* discard */}
+          {/* Discard */}
           <button onClick={() => navigate('/home')}
-            style={{ padding:'10px 20px',border:'1px solid #0e1e38',borderRadius:14,cursor:'pointer',fontFamily:'DM Mono,monospace',fontSize:12,background:'transparent',color:'#2d4a66',transition:'color .2s,border-color .2s' }}
-            onMouseOver={e => { e.currentTarget.style.color='#ff3b4e'; e.currentTarget.style.borderColor='rgba(255,59,78,.25)' }}
-            onMouseOut={e => { e.currentTarget.style.color='#2d4a66'; e.currentTarget.style.borderColor='#0e1e38' }}
+            style={{ padding:'10px 20px',border:'1px solid rgba(109,40,217,.2)',borderRadius:14,cursor:'pointer',fontFamily:'monospace',fontSize:12,background:'transparent',color:'#4c1d95',transition:'color .2s,border-color .2s' }}
+            onMouseOver={e => { e.currentTarget.style.color='#fca5a5'; e.currentTarget.style.borderColor='rgba(252,165,165,.3)' }}
+            onMouseOut={e => { e.currentTarget.style.color='#4c1d95'; e.currentTarget.style.borderColor='rgba(109,40,217,.2)' }}
           >
             ✕ Discard & Exit
           </button>
@@ -821,10 +755,11 @@ export default function TransactionPage({ user, setUser }) {
         display:'flex',alignItems:'center',gap:8,pointerEvents:'none',
         transform:toast.show?'translateY(0)':'translateY(80px)',
         opacity:toast.show?1:0,transition:'transform .4s cubic-bezier(.22,1,.36,1),opacity .4s',
-        maxWidth:340,lineHeight:1.4,fontFamily:'DM Mono,monospace',
-        background:toast.type==='success'?'#081f14':toast.type==='error'?'#1a0507':toast.type==='warn'?'#1a1000':'#050f20',
-        border:`1px solid ${toast.type==='success'?'rgba(0,232,136,.4)':toast.type==='error'?'rgba(255,59,78,.4)':toast.type==='warn'?'rgba(245,166,35,.4)':'rgba(0,232,255,.3)'}`,
-        color:toast.type==='success'?'#00e888':toast.type==='error'?'#ff3b4e':toast.type==='warn'?'#f5a623':'#00e8ff',
+        maxWidth:340,lineHeight:1.4,fontFamily:"'Sora',sans-serif",
+        background:toast.type==='success'?'rgba(22,163,74,.14)':toast.type==='error'?'rgba(220,38,38,.14)':toast.type==='warn'?'rgba(217,119,6,.14)':'rgba(109,40,217,.14)',
+        border:`1px solid ${toast.type==='success'?'rgba(134,239,172,.38)':toast.type==='error'?'rgba(252,165,165,.38)':toast.type==='warn'?'rgba(252,211,77,.38)':'rgba(167,139,250,.38)'}`,
+        color:toast.type==='success'?'#86efac':toast.type==='error'?'#fca5a5':toast.type==='warn'?'#fcd34d':'#a78bfa',
+        backdropFilter:'blur(14px)',
       }}>
         {toast.msg}
       </div>
@@ -832,21 +767,26 @@ export default function TransactionPage({ user, setUser }) {
   )
 }
 
-/* ── Global CSS injected via <style> ──────────────────────── */
-const globalCSS = `
-  @keyframes shimmer  { 0%,100%{opacity:.4} 50%{opacity:1} }
-  @keyframes blink    { 0%,100%{opacity:1}  50%{opacity:.25} }
-  @keyframes spin     { to{transform:rotate(360deg)} }
-  @keyframes scanLine { 0%{top:5%;opacity:0} 8%{opacity:1} 92%{opacity:1} 100%{top:95%;opacity:0} }
-  @keyframes bounce   { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-6px)} }
-  @keyframes cardIn   { from{opacity:0;transform:translateY(18px) scale(.98)} to{opacity:1;transform:none} }
-  @keyframes rowIn    { from{opacity:0;transform:translateX(-8px)} to{opacity:1;transform:none} }
-  @keyframes popIn    { from{opacity:0;transform:scale(.7)} to{opacity:1;transform:scale(1)} }
 
-  /* barcode-input animations */
+/* ── Global CSS ──────────────────────────────────────────── */
+const globalCSS = `
+  @import url('https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700;800&display=swap');
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #000; }
+
+  @keyframes shimmer       { 0%,100%{opacity:.4} 50%{opacity:1} }
+  @keyframes blink         { 0%,100%{opacity:1}  50%{opacity:.25} }
+  @keyframes spin          { to{transform:rotate(360deg)} }
+  @keyframes scanLine      { 0%{top:5%;opacity:0} 8%{opacity:1} 92%{opacity:1} 100%{top:95%;opacity:0} }
+  @keyframes bounce        { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-6px)} }
+  @keyframes cardIn        { from{opacity:0;transform:translateY(18px) scale(.98)} to{opacity:1;transform:none} }
+  @keyframes rowIn         { from{opacity:0;transform:translateX(-8px)} to{opacity:1;transform:none} }
+  @keyframes popIn         { from{opacity:0;transform:scale(.7)} to{opacity:1;transform:scale(1)} }
+  @keyframes particlePulse { 0%,100%{opacity:0;transform:scale(1)} 50%{opacity:.5;transform:scale(1.6)} }
+
   @keyframes barcodeScan { 0%{top:0;opacity:0} 10%{opacity:1} 50%{top:calc(100% - 2px);opacity:1} 60%{opacity:0} 100%{top:0;opacity:0} }
   @keyframes cellPop     { 0%{transform:scale(.6);opacity:0} 60%{transform:scale(1.12)} 100%{transform:scale(1);opacity:1} }
-  @keyframes caretBlink  { 0%,49%{border-color:rgba(0,232,255,.55);box-shadow:0 0 10px rgba(0,232,255,.4)} 50%,100%{border-color:rgba(0,232,255,.15);box-shadow:none} }
+  @keyframes caretBlink  { 0%,49%{border-color:rgba(167,139,250,.55);box-shadow:0 0 10px rgba(167,139,250,.4)} 50%,100%{border-color:rgba(167,139,250,.15);box-shadow:none} }
   @property --ang { syntax: '<angle>'; inherits: false; initial-value: 0deg; }
   @keyframes rotateGrad { to { --ang: 360deg } }
 `

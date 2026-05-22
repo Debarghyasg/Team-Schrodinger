@@ -428,9 +428,53 @@ export default function TransactionPage({ user, setUser }) {
 
   async function handlePay() {
     if (cart.length === 0) return
-    setPaid(true)
-    showToast('✅ Transaction complete — receipt generated', 'success')
-    setTimeout(() => navigate('/home'), 3200)
+    if (verifiedItems.length === 0) {
+      showToast('Cannot pay — no verified items in cart.', 'error')
+      return
+    }
+
+    setScanning(true)   // reuse the global "processing" spinner on the Pay button
+
+    try {
+      const payload = {
+        items: verifiedItems
+          .filter(c => c.barcode)         // need a barcode to decrement DB stock
+          .map(c => ({ barcode: c.barcode, qty: c.qty })),
+      }
+
+      const res = await fetch('/api/checkout/pay', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(payload),
+      })
+      const data = await res.json().catch(() => ({}))
+
+      if (!res.ok || !data.ok) {
+        const reason =
+          data?.notFound?.length      ? `${data.notFound.length} item(s) missing from inventory`
+        : data?.insufficient?.length  ? `${data.insufficient.length} item(s) had insufficient stock`
+        :                                (data?.message || `Server error ${res.status}`)
+        showToast(`❌ Payment failed — ${reason}`, 'error')
+        setScanning(false)
+        return
+      }
+
+      // Success path — show low-stock toast (if any) then mark paid.
+      if (Array.isArray(data.lowStock) && data.lowStock.length > 0) {
+        const names = data.lowStock.map(p => p.product_name).join(', ')
+        showToast(`⚠️ Low stock — email sent · ${names}`, 'warn')
+      } else {
+        showToast('✅ Transaction complete — receipt generated', 'success')
+      }
+
+      setScanning(false)
+      setPaid(true)
+      setTimeout(() => navigate('/home'), 3200)
+    } catch (err) {
+      showToast(`❌ Payment error: ${err.message}`, 'error')
+      setScanning(false)
+    }
   }
 
   async function logout() {

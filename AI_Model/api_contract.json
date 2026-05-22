@@ -1,0 +1,35 @@
+{
+    "endpoint": "POST /verify",
+    "input": {
+        "barcode": "string — scanned barcode number",
+        "image": "file — product image from webcam"
+    },
+    "output_pass": {
+        "barcode": "8901491503217",
+        "db_product": {
+            "product_name": "Bournvita 400g",
+            "price": 95.0
+        },
+        "ocr_best_text": "Bournvita 400g",
+        "ocr_all_texts": ["Bournvita 400g", "Cadbury", "Health Drink"],
+        "trust_score": 100,
+        "decision": "PASS",
+        "fraud_reason": null,
+        "llm_narrative": null
+    },
+    "output_block": {
+        "barcode": "4006381333931",
+        "db_product": {
+            "product_name": "Nivea Cream 200ml",
+            "price": 180.0
+        },
+        "ocr_best_text": "Nestle Milo",
+        "ocr_all_texts": ["Nestle Milo", "500g", "Chocolate Malt Drink"],
+        "trust_score": 36,
+        "decision": "BLOCK",
+        "fraud_reason": "TICKET SWITCHING DETECTED — Barcode says Nivea Cream 200ml but label shows Nestle Milo (match only 36%)",
+        "llm_narrative": "⚠️ Fraud Alert: Barcode indicates Nivea Cream 200ml but label shows Nestle Milo (trust score: 36%). Hold transaction and call supervisor immediately."
+    },
+    "decision_values": ["PASS", "BLOCK"],
+    "notes": "Call verify_from_scanner(barcode, image_path) from ai_core.py"
+}

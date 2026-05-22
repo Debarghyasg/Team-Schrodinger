@@ -113,6 +113,8 @@ app.use(session({
     store:             new RedisStore({ client: redisClient }),
     secret:            process.env.SESSION_SECRET || 'smartretail_secret',
     resave:            false,
+        secure: false,    
+    sameSite: 'lax',
     saveUninitialized: false,
     rolling:           true,
     cookie: { maxAge: 30 * 60 * 1000, httpOnly: true, secure: process.env.NODE_ENV === 'production' },

@@ -3,10 +3,9 @@ import { useNavigate } from 'react-router-dom'
 
 /* ─── Mascot Intro Animation ────────────────────────────────────────── */
 function MascotIntro() {
-  const [phase, setPhase] = useState('enter') // enter → zoom → exit → done
+  const [phase, setPhase] = useState('enter')
 
   useEffect(() => {
-    // Phase timeline: slide-up(0.6s) → zoom loop(1.8s) → slide-down(0.6s) = 3s total
     const t1 = setTimeout(() => setPhase('zoom'),  600)
     const t2 = setTimeout(() => setPhase('exit'),  2400)
     const t3 = setTimeout(() => setPhase('done'),  3000)
@@ -21,7 +20,6 @@ function MascotIntro() {
       display: 'flex', alignItems: 'flex-end', justifyContent: 'center',
       pointerEvents: 'none', overflow: 'hidden',
     }}>
-      {/* purple glow on floor */}
       <div style={{
         position: 'absolute', bottom: 0, left: '50%', transform: 'translateX(-50%)',
         width: 340, height: 120,
@@ -31,7 +29,6 @@ function MascotIntro() {
         transition: 'opacity 0.5s ease',
       }} />
 
-      {/* mascot wrapper — slides up / down */}
       <div style={{
         position: 'relative',
         width: 240, height: 280, marginBottom: -8,
@@ -47,8 +44,6 @@ function MascotIntro() {
           : 'none',
         animation: phase === 'zoom' ? 'mascotBob 1s ease-in-out infinite' : 'none',
       }}>
-
-        {/* pulsing lens ring around the magnifying glass area */}
         {phase === 'zoom' && (
           <>
             <div style={{
@@ -68,7 +63,6 @@ function MascotIntro() {
           </>
         )}
 
-        {/* the mascot image */}
         <img
           src="/mascot.png"
           alt="NyatikNayan mascot"
@@ -81,7 +75,6 @@ function MascotIntro() {
           }}
         />
 
-        {/* speech bubble — pops in during zoom phase */}
         {phase === 'zoom' && (
           <div style={{
             position: 'absolute', top: -14, right: -38,
@@ -96,7 +89,6 @@ function MascotIntro() {
             animation: 'bubblePop 0.35s cubic-bezier(0.34,1.56,0.64,1) both',
           }}>
             Let's verify! 🔍
-            {/* little tail */}
             <div style={{
               position: 'absolute', bottom: -6, left: 10,
               width: 10, height: 10,
@@ -112,7 +104,7 @@ function MascotIntro() {
   )
 }
 
-/* ─── 3-D Floating Shape SVGs (video-matched) ─────────────────────── */
+/* ─── 3-D Floating Shape SVGs ─────────────────────────────────────── */
 function Shape3D({ style, type = 'cube' }) {
   if (type === 'cube')
     return (
@@ -201,7 +193,6 @@ function Shape3D({ style, type = 'cube' }) {
       </svg>
     )
 
-  // shopping-bag shape for retail
   return (
     <svg viewBox="0 0 120 120" style={style} fill="none" xmlns="http://www.w3.org/2000/svg">
       <defs>
@@ -218,15 +209,15 @@ function Shape3D({ style, type = 'cube' }) {
   )
 }
 
-/* ─── Floating retail-context particle dots ─────────────────────────── */
+/* ─── Particle Field ─────────────────────────────────────────────────── */
 function ParticleField() {
   const dots = Array.from({ length: 28 }, (_, i) => ({
     id: i,
     left: `${(i * 37 + 7) % 100}%`,
-    top: `${(i * 53 + 11) % 100}%`,
+    top:  `${(i * 53 + 11) % 100}%`,
     size: 1 + (i % 3),
     delay: `${(i * 0.4) % 6}s`,
-    dur: `${5 + (i % 4)}s`,
+    dur:   `${5 + (i % 4)}s`,
   }))
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 0, pointerEvents: 'none', overflow: 'hidden' }}>
@@ -242,7 +233,7 @@ function ParticleField() {
   )
 }
 
-/* ─── Glass Browser Card ────────────────────────────────────────────── */
+/* ─── Glass Browser Card ─────────────────────────────────────────────── */
 function BrowserCard({ children, glowColor = '#7c3aed', style, urlLabel = 'smartretail.ai/verify' }) {
   return (
     <div style={{
@@ -276,15 +267,15 @@ function BrowserCard({ children, glowColor = '#7c3aed', style, urlLabel = 'smart
   )
 }
 
-/* ─── Retail Stats Ticker ────────────────────────────────────────────── */
+/* ─── Stats Ticker ───────────────────────────────────────────────────── */
 function StatsTicker() {
   const stats = [
-    { icon: '🛒', label: 'Items Verified', value: '1.2M+' },
-    { icon: '⚡', label: 'Avg Scan Time', value: '0.8s' },
-    { icon: '✓', label: 'Match Accuracy', value: '98.4%' },
-    { icon: '📦', label: 'SKUs Tracked', value: '240K' },
+    { icon: '🛒', label: 'Items Verified',   value: '1.2M+' },
+    { icon: '⚡', label: 'Avg Scan Time',    value: '0.8s'  },
+    { icon: '✓',  label: 'Match Accuracy',   value: '98.4%' },
+    { icon: '📦', label: 'SKUs Tracked',     value: '240K'  },
     { icon: '🔲', label: 'Barcodes Decoded', value: '850K+' },
-    { icon: '🏪', label: 'Retail Stores', value: '3,800+' },
+    { icon: '🏪', label: 'Retail Stores',    value: '3,800+'},
   ]
   return (
     <div style={{ overflow: 'hidden', position: 'relative', marginBottom: 48 }}>
@@ -309,12 +300,12 @@ function StatsTicker() {
   )
 }
 
-/* ─── Drop Zone ─────────────────────────────────────────────────────── */
+/* ─── Drop Zone ──────────────────────────────────────────────────────── */
 function DropZone({ type, analyzing, imageB64, label, icon, onFile, onCamera, onRemove, fileRef, product, barcode }) {
   const [drag, setDrag] = useState(false)
-  const isProd = type === 'product'
-  const accent = isProd ? '#a78bfa' : '#c4b5fd'
-  const glowC = isProd ? '#7c3aed' : '#9d6fff'
+  const isProd  = type === 'product'
+  const accent  = isProd ? '#a78bfa' : '#c4b5fd'
+  const glowC   = isProd ? '#7c3aed' : '#9d6fff'
   const ocrText = isProd ? product.ocrText : (barcode.ocrText || barcode.barcodeValue)
 
   return (
@@ -386,23 +377,9 @@ function DropZone({ type, analyzing, imageB64, label, icon, onFile, onCamera, on
             animation: 'scanLine 1.6s ease-in-out infinite',
           }} />
         )}
-        {!imageB64 && <>
-          {[['tl', 0, 0], ['tr', 0, 'auto'], ['bl', 'auto', 0], ['br', 'auto', 'auto']].map(([id, t, r]) => (
-            <svg key={id} width="16" height="16" viewBox="0 0 16 16" style={{
-              position: 'absolute',
-              top: t === 0 ? 8 : t,
-              right: r === 0 ? 8 : r,
-              bottom: r === 'auto' && t === 'auto' ? 8 : 'auto',
-              left: r === 0 ? 8 : r === 'auto' && t === 0 ? 'auto' : r === 'auto' ? 8 : 'auto',
-              opacity: .35,
-              transform: id === 'tr' ? 'scaleX(-1)' : id === 'br' ? 'scale(-1,-1)' : id === 'bl' ? 'scaleY(-1)' : 'none',
-            }}>
-              <path d="M2 14 L2 2 L14 2" stroke={accent} strokeWidth="1.5" fill="none" strokeLinecap="round" />
-            </svg>
-          ))}
-        </>}
       </div>
 
+      {/* Show extracted OCR/barcode text below image */}
       {imageB64 && ocrText && (
         <div style={{
           margin: '12px 14px 0', padding: '10px 12px', borderRadius: 9,
@@ -440,23 +417,32 @@ function DropZone({ type, analyzing, imageB64, label, icon, onFile, onCamera, on
   )
 }
 
-/* ─── Main Page ─────────────────────────────────────────────────────── */
+/* ─── Main Page ──────────────────────────────────────────────────────── */
 export default function HomePage({ user, setUser }) {
   const navigate = useNavigate()
-  const [product, setProduct] = useState({ base64: null, ocrText: '', ready: false })
-  const [barcode, setBarcode] = useState({ base64: null, ocrText: '', barcodeValue: '', ready: false })
+
+  // ── Image state ──────────────────────────────────────────────────────
+  const [product, setProduct]               = useState({ base64: null, ocrText: '', ready: false })
+  const [barcode, setBarcode]               = useState({ base64: null, ocrText: '', barcodeValue: '', ready: false })
   const [productAnalyzing, setProductAnalyzing] = useState(false)
   const [barcodeAnalyzing, setBarcodeAnalyzing] = useState(false)
-  const [result, setResult] = useState(null)
+
+  // ── Result / UI state ────────────────────────────────────────────────
+  const [result,   setResult]   = useState(null)
   const [matching, setMatching] = useState(false)
-  const [toast, setToast] = useState({ msg: '', type: '', show: false })
-  const [camOpen, setCamOpen] = useState(false)
+  const [toast,    setToast]    = useState({ msg: '', type: '', show: false })
+
+  // ── Camera state ─────────────────────────────────────────────────────
+  const [camOpen,   setCamOpen]   = useState(false)
   const [camTarget, setCamTarget] = useState(null)
-  const camVideoRef = useRef(null)
+  const camVideoRef  = useRef(null)
   const camStreamRef = useRef(null)
+
+  // ── File input refs ──────────────────────────────────────────────────
   const productFileRef = useRef(null)
   const barcodeFileRef = useRef(null)
 
+  // ── Load Tesseract + Quagga for client-side pre-extraction ───────────
   useEffect(() => {
     const addScript = src => {
       if (document.querySelector(`script[src="${src}"]`)) return
@@ -470,16 +456,19 @@ export default function HomePage({ user, setUser }) {
     if (!document.querySelector(`link[href="${link.href}"]`)) document.head.appendChild(link)
   }, [])
 
+  // ── Toast ─────────────────────────────────────────────────────────────
   function showToast(msg, type = 'info') {
     setToast({ msg, type, show: true })
     setTimeout(() => setToast(t => ({ ...t, show: false })), 4000)
   }
 
+  // ── Logout ────────────────────────────────────────────────────────────
   async function logout() {
-    await fetch('/api/logout', { credentials: 'include' })
+    await fetch('/api/logout', { method: 'POST', credentials: 'include' })
     setUser(null); navigate('/')
   }
 
+  // ── File loader ───────────────────────────────────────────────────────
   function loadImage(file, type) {
     const reader = new FileReader()
     reader.onload = async e => {
@@ -502,21 +491,23 @@ export default function HomePage({ user, setUser }) {
     reader.readAsDataURL(file)
   }
 
+  // ── Client-side OCR (Tesseract) — for display only ───────────────────
   async function runProductOCR(b64) {
     try {
       const Tesseract = window.Tesseract
-      if (!Tesseract) { setProduct(p => ({ ...p, ocrText: '(Tesseract not loaded)', ready: true })); return }
+      if (!Tesseract) { setProduct(p => ({ ...p, ocrText: '', ready: true })); return }
       const worker = await Tesseract.createWorker('eng')
       const { data: { text } } = await worker.recognize(b64)
       await worker.terminate()
       setProduct({ base64: b64, ocrText: text.trim().replace(/\s+/g, ' '), ready: true })
-      showToast('Product OCR complete', 'success')
+      showToast('Product image ready', 'success')
     } catch {
       setProduct(p => ({ ...p, ready: true }))
-      showToast('OCR failed — match will use image only', 'error')
+      showToast('Image ready (OCR preview skipped)', 'info')
     }
   }
 
+  // ── Client-side barcode decode (Quagga + Tesseract) — for display ────
   async function runBarcodeAnalysis(b64) {
     let barcodeVal = '', ocrText = ''
     try {
@@ -537,58 +528,93 @@ export default function HomePage({ user, setUser }) {
       }
     } catch {}
     setBarcode({ base64: b64, ocrText, barcodeValue: barcodeVal, ready: true })
-    showToast('Barcode analysis complete', 'success')
+    showToast('Barcode image ready', 'success')
   }
 
-  function tokenize(str = '') {
-    const STOP = new Set(['the', 'and', 'for', 'with', 'this', 'that', 'from', 'are', 'was', 'has', 'its', 'per', 'can', 'all', 'net', 'wt', 'oz'])
-    return new Set(str.toLowerCase().replace(/[^a-z0-9\s]/g, ' ').split(/\s+/).filter(t => t.length >= 3 && !STOP.has(t)))
-  }
-
+  // ── ★ MAIN AI MATCH — sends to Node → FastAPI /match ─────────────────
   async function runMatch() {
     setMatching(true); setResult(null)
-    showToast('Running verification…', 'info')
-    await new Promise(r => setTimeout(r, 600))
+    showToast('Running AI verification…', 'info')
+
     try {
-      const pT = tokenize(product.ocrText)
-      const bT = tokenize(barcode.ocrText + ' ' + barcode.barcodeValue)
-      const overlap = [...pT].filter(t => bT.has(t))
-      const union = new Set([...pT, ...bT]).size
-      const confidence = union > 0 ? Math.round(overlap.length / union * 100) : 0
+      // Strip the data:image/...;base64, prefix before sending
+      const imageB64 = product.base64?.split(',')[1] || null
 
-      let inventoryResult = null
-      if (barcode.barcodeValue) {
-        try {
-          const r = await fetch('/api/checkout/match-verify', {
-            method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
-            body: JSON.stringify({ barcode: barcode.barcodeValue, product_ocr: product.ocrText, barcode_ocr: barcode.ocrText }),
-          })
-          if (r.ok) inventoryResult = await r.json()
-        } catch {}
+      const res = await fetch('/api/checkout/match-verify', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          barcode:     barcode.barcodeValue || '',
+          product_ocr: product.ocrText      || '',
+          barcode_ocr: barcode.ocrText      || '',
+          yolo_label:  '',          // YOLO runs server-side via image_b64
+          image_b64:   imageB64,    // FastAPI /match will run YOLO on this
+        }),
+      })
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err.message || `Server error ${res.status}`)
       }
 
-      let verdict, type, icon, sub
-      if (inventoryResult && !inventoryResult.found) {
-        verdict = 'Not in Inventory'; type = 'mismatch'; icon = '🚫'
-        sub = `Barcode ${barcode.barcodeValue} not found in store inventory.`
-      } else if (confidence >= 45 || inventoryResult?.match) {
-        verdict = 'Match Verified'; type = 'match'; icon = '✓'
-        sub = inventoryResult ? `Confirmed: ${inventoryResult.product_name || ''}` : `${confidence}% text overlap detected.`
-      } else if (confidence >= 20) {
-        verdict = 'Partial Match'; type = 'partial'; icon = '⚠'
-        sub = `Low overlap (${confidence}%). Manual verification recommended.`
-      } else {
-        verdict = 'No Match'; type = 'mismatch'; icon = '✗'
-        sub = `Only ${confidence}% text overlap. Product may not match barcode.`
-      }
+      const data = await res.json()
 
-      setResult({ verdict, type, icon, sub, confidence, overlap, inventoryResult, productText: product.ocrText, barcodeText: barcode.ocrText, barcodeVal: barcode.barcodeValue })
-      showToast(type === 'match' ? 'Match verified!' : type === 'mismatch' ? 'Match failed' : 'Partial match', type === 'match' ? 'success' : 'error')
+      // Map FastAPI /match response → UI result object
+      const type =
+        !data.found                              ? 'mismatch'
+        : data.match                             ? 'match'
+        : data.fraud_type === 'LOW_CONFIDENCE'   ? 'partial'
+        : 'mismatch'
+
+      const verdict =
+        !data.found                              ? 'Not in Inventory'
+        : data.match                             ? 'Match Verified'
+        : data.fraud_type === 'LOW_CONFIDENCE'   ? 'Partial Match'
+        : data.fraud_type === 'LABEL_SWAP'       ? '⚠ Label Swap Detected'
+        : 'Fraud Detected'
+
+      const icon = type === 'match' ? '✓' : type === 'partial' ? '⚠' : '✗'
+
+      const sub =
+        !data.found
+          ? `Barcode "${barcode.barcodeValue}" not found in inventory.`
+          : data.fraud_type
+          ? `Fraud type: ${data.fraud_type} · Risk: ${((data.fraud_risk || 0) * 100).toFixed(0)}%`
+          : `Matched: ${data.product_name}`
+
+      setResult({
+        verdict,
+        type,
+        icon,
+        sub,
+        confidence:   data.confidence   || 0,
+        fraudRisk:    data.fraud_risk    || 0,
+        fraudType:    data.fraud_type    || null,
+        yoloLabel:    data.yolo_label    || null,
+        productName:  data.product_name  || null,
+        price:        data.price         || null,
+        quantity:     data.quantity      || null,
+        productText:  product.ocrText,
+        barcodeText:  barcode.ocrText,
+        barcodeVal:   barcode.barcodeValue,
+      })
+
+      showToast(
+        type === 'match'   ? 'Verified ✓'          :
+        type === 'partial' ? 'Partial match ⚠'      :
+                             '⚠️ Fraud detected',
+        type === 'match'   ? 'success' : type === 'partial' ? 'info' : 'error'
+      )
+
     } catch (err) {
-      showToast('Match failed: ' + err.message, 'error')
-    } finally { setMatching(false) }
+      showToast('Verification error: ' + err.message, 'error')
+    } finally {
+      setMatching(false)
+    }
   }
 
+  // ── Camera ─────────────────────────────────────────────────────────────
   async function openCamera(type) {
     setCamTarget(type); setCamOpen(true)
     try {
@@ -611,7 +637,7 @@ export default function HomePage({ user, setUser }) {
     const canvas = document.createElement('canvas')
     canvas.width = video.videoWidth; canvas.height = video.videoHeight
     canvas.getContext('2d').drawImage(video, 0, 0)
-    const b64 = canvas.toDataURL('image/jpeg', .9)
+    const b64  = canvas.toDataURL('image/jpeg', .9)
     const type = camTarget; closeCamera()
     loadImageFromB64(b64, type)
   }
@@ -627,10 +653,12 @@ export default function HomePage({ user, setUser }) {
     setResult(null)
   }
 
+  // ── Result colour maps ─────────────────────────────────────────────────
   const rc = { match: '#86efac', mismatch: '#fca5a5', partial: '#fcd34d' }
   const rb = { match: 'rgba(134,239,172,.05)', mismatch: 'rgba(252,165,165,.05)', partial: 'rgba(252,211,77,.05)' }
   const rg = { match: '#16a34a', mismatch: '#dc2626', partial: '#d97706' }
 
+  // ─────────────────────────────────────────────────────────────────────
   return (
     <>
       <style>{`
@@ -639,178 +667,158 @@ export default function HomePage({ user, setUser }) {
         html { scroll-behavior: smooth; }
         body { background: #000; }
 
-        @keyframes floatA { 0%,100% { transform: translateY(0) rotate(0deg) scale(1) } 50% { transform: translateY(-24px) rotate(9deg) scale(1.02) } }
-        @keyframes floatB { 0%,100% { transform: translateY(0) rotate(0deg) } 50% { transform: translateY(20px) rotate(-7deg) } }
-        @keyframes floatC { 0%,100% { transform: translateY(0) rotate(0deg) } 50% { transform: translateY(-16px) rotate(13deg) } }
-        @keyframes floatD { 0%,100% { transform: translateY(0) rotate(0deg) } 50% { transform: translateY(22px) rotate(-11deg) } }
-        @keyframes floatE { 0%,100% { transform: translateY(0) rotate(0deg) } 50% { transform: translateY(-18px) rotate(6deg) } }
+        @keyframes floatA { 0%,100%{transform:translateY(0) rotate(0deg) scale(1)} 50%{transform:translateY(-24px) rotate(9deg) scale(1.02)} }
+        @keyframes floatB { 0%,100%{transform:translateY(0) rotate(0deg)} 50%{transform:translateY(20px) rotate(-7deg)} }
+        @keyframes floatC { 0%,100%{transform:translateY(0) rotate(0deg)} 50%{transform:translateY(-16px) rotate(13deg)} }
+        @keyframes floatD { 0%,100%{transform:translateY(0) rotate(0deg)} 50%{transform:translateY(22px) rotate(-11deg)} }
+        @keyframes floatE { 0%,100%{transform:translateY(0) rotate(0deg)} 50%{transform:translateY(-18px) rotate(6deg)} }
 
         @keyframes scanLine {
-          0%   { top: 5%;  opacity: 0 }
-          8%   { opacity: 1 }
-          92%  { opacity: 1 }
-          100% { top: 95%; opacity: 0 }
+          0%   { top:5%;  opacity:0 }
+          8%   { opacity:1 }
+          92%  { opacity:1 }
+          100% { top:95%; opacity:0 }
         }
-        @keyframes spin { to { transform: rotate(360deg) } }
-        @keyframes resultIn { from { opacity:0; transform:translateY(26px) } to { opacity:1; transform:none } }
-        @keyframes heroIn { from { opacity:0; transform:translateY(22px) } to { opacity:1; transform:none } }
-        @keyframes pulse { 0%,100% { opacity:1; box-shadow:0 0 6px #a78bfa } 50% { opacity:.35; box-shadow:0 0 2px #7c3aed } }
+        @keyframes spin        { to { transform:rotate(360deg) } }
+        @keyframes resultIn    { from{opacity:0;transform:translateY(26px)} to{opacity:1;transform:none} }
+        @keyframes heroIn      { from{opacity:0;transform:translateY(22px)} to{opacity:1;transform:none} }
+        @keyframes pulse       { 0%,100%{opacity:1;box-shadow:0 0 6px #a78bfa} 50%{opacity:.35;box-shadow:0 0 2px #7c3aed} }
         @keyframes particlePulse { 0%,100%{opacity:0;transform:scale(1)} 50%{opacity:.55;transform:scale(1.6)} }
-        @keyframes tickerScroll { from { transform: translateX(0) } to { transform: translateX(-50%) } }
-        @keyframes matchGlow { 0%,100%{box-shadow:0 4px 32px rgba(124,58,237,.35)} 50%{box-shadow:0 4px 52px rgba(124,58,237,.65),0 0 60px rgba(167,139,250,.2)} }
-        @keyframes badgeShimmer {
-          0%   { background-position: -200% center }
-          100% { background-position:  200% center }
-        }
+        @keyframes tickerScroll  { from{transform:translateX(0)} to{transform:translateX(-50%)} }
+        @keyframes matchGlow     { 0%,100%{box-shadow:0 4px 32px rgba(124,58,237,.35)} 50%{box-shadow:0 4px 52px rgba(124,58,237,.65),0 0 60px rgba(167,139,250,.2)} }
+        @keyframes badgeShimmer  { 0%{background-position:-200% center} 100%{background-position:200% center} }
+        @keyframes mascotBob     { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-10px)} }
+        @keyframes lensZoom      { 0%,100%{transform:scale(1)} 40%{transform:scale(1.06)} 70%{transform:scale(0.97)} }
+        @keyframes lensRing      { 0%{transform:scale(0.7);opacity:0.9} 100%{transform:scale(1.7);opacity:0} }
+        @keyframes bubblePop     { 0%{transform:scale(0) translateY(6px);opacity:0} 70%{transform:scale(1.08) translateY(-2px);opacity:1} 100%{transform:scale(1) translateY(0);opacity:1} }
 
-        /* ── Mascot animations ── */
-        @keyframes mascotBob {
-          0%,100% { transform: translateY(0) }
-          50%     { transform: translateY(-10px) }
-        }
-        @keyframes lensZoom {
-          0%,100% { transform: scale(1) }
-          40%     { transform: scale(1.06) }
-          70%     { transform: scale(0.97) }
-        }
-        @keyframes lensRing {
-          0%   { transform: scale(0.7); opacity: 0.9 }
-          100% { transform: scale(1.7); opacity: 0   }
-        }
-        @keyframes bubblePop {
-          0%   { transform: scale(0) translateY(6px); opacity: 0 }
-          70%  { transform: scale(1.08) translateY(-2px); opacity: 1 }
-          100% { transform: scale(1) translateY(0); opacity: 1 }
-        }
-
-        .nav-btn:hover { color: #a78bfa !important; border-color: rgba(167,139,250,.38) !important; }
-        .upload-btn:hover { background: rgba(109,40,217,.2) !important; }
-        .match-btn:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 10px 48px rgba(124,58,237,.55) !important; }
-        .match-btn:active:not(:disabled) { transform: translateY(0); }
+        .nav-btn:hover    { color:#a78bfa !important; border-color:rgba(167,139,250,.38) !important; }
+        .upload-btn:hover { background:rgba(109,40,217,.2) !important; }
+        .match-btn:hover:not(:disabled)  { transform:translateY(-2px); box-shadow:0 10px 48px rgba(124,58,237,.55) !important; }
+        .match-btn:active:not(:disabled) { transform:translateY(0); }
       `}</style>
 
-      {/* ── Mascot intro (renders on top of everything for 3s) ── */}
       <MascotIntro />
 
-      {/* ── Background layers ── */}
-      <div style={{ position: 'fixed', inset: 0, background: '#000', zIndex: 0 }} />
-      <div style={{ position: 'fixed', inset: 0, background: 'radial-gradient(ellipse 75% 55% at 50% -5%, rgba(109,40,217,.2) 0%, transparent 70%)', zIndex: 0, pointerEvents: 'none' }} />
-      <div style={{ position: 'fixed', inset: 0, background: 'radial-gradient(ellipse 90% 50% at 50% 120%, rgba(76,29,149,.12) 0%, transparent 60%)', zIndex: 0, pointerEvents: 'none' }} />
-      <div style={{ position: 'fixed', top: 60, left: 0, right: 0, height: 1, background: 'linear-gradient(to right, transparent, rgba(109,40,217,.25), transparent)', zIndex: 1, pointerEvents: 'none' }} />
+      {/* Background */}
+      <div style={{ position:'fixed', inset:0, background:'#000', zIndex:0 }} />
+      <div style={{ position:'fixed', inset:0, background:'radial-gradient(ellipse 75% 55% at 50% -5%, rgba(109,40,217,.2) 0%, transparent 70%)', zIndex:0, pointerEvents:'none' }} />
+      <div style={{ position:'fixed', inset:0, background:'radial-gradient(ellipse 90% 50% at 50% 120%, rgba(76,29,149,.12) 0%, transparent 60%)', zIndex:0, pointerEvents:'none' }} />
+      <div style={{ position:'fixed', top:60, left:0, right:0, height:1, background:'linear-gradient(to right, transparent, rgba(109,40,217,.25), transparent)', zIndex:1, pointerEvents:'none' }} />
 
       <ParticleField />
 
-      {/* ── Floating 3D shapes ── */}
-      <Shape3D type="cube"  style={{ position:'fixed', top:28,  left:-14,  width:170, height:170, opacity:.9,  animation:'floatA 8s ease-in-out infinite',      zIndex:0, filter:'drop-shadow(0 0 28px rgba(124,58,237,.55))' }} />
-      <Shape3D type="bolt"  style={{ position:'fixed', top:10,  right:22,  width:150, height:150, opacity:.75, animation:'floatB 10s ease-in-out infinite',     zIndex:0, filter:'drop-shadow(0 0 22px rgba(167,139,250,.45))' }} />
-      <Shape3D type="cube"  style={{ position:'fixed', bottom:50, left:30, width:140, height:140, opacity:.68, animation:'floatC 12s ease-in-out infinite',     zIndex:0, filter:'drop-shadow(0 0 20px rgba(109,40,217,.5))',  transform:'rotate(28deg)' }} />
-      <Shape3D type="ring"  style={{ position:'fixed', bottom:65, right:14, width:160, height:160, opacity:.62, animation:'floatD 9s ease-in-out infinite',    zIndex:0, filter:'drop-shadow(0 0 24px rgba(124,58,237,.42))' }} />
-      <Shape3D type="bag"   style={{ position:'fixed', top:'38%', left:8,  width:90,  height:90,  opacity:.45, animation:'floatE 14s ease-in-out infinite',    zIndex:0, filter:'drop-shadow(0 0 16px rgba(124,58,237,.35))' }} />
-      <Shape3D type="star"  style={{ position:'fixed', top:'45%', right:10, width:80, height:80,  opacity:.4,  animation:'floatA 11s ease-in-out 2s infinite', zIndex:0, filter:'drop-shadow(0 0 14px rgba(167,139,250,.3))' }} />
+      {/* Floating shapes */}
+      <Shape3D type="cube" style={{ position:'fixed',top:28,  left:-14, width:170,height:170,opacity:.9, animation:'floatA 8s ease-in-out infinite',     zIndex:0,filter:'drop-shadow(0 0 28px rgba(124,58,237,.55))' }} />
+      <Shape3D type="bolt" style={{ position:'fixed',top:10,  right:22, width:150,height:150,opacity:.75,animation:'floatB 10s ease-in-out infinite',    zIndex:0,filter:'drop-shadow(0 0 22px rgba(167,139,250,.45))' }} />
+      <Shape3D type="cube" style={{ position:'fixed',bottom:50,left:30, width:140,height:140,opacity:.68,animation:'floatC 12s ease-in-out infinite',    zIndex:0,filter:'drop-shadow(0 0 20px rgba(109,40,217,.5))',transform:'rotate(28deg)' }} />
+      <Shape3D type="ring" style={{ position:'fixed',bottom:65,right:14,width:160,height:160,opacity:.62,animation:'floatD 9s ease-in-out infinite',     zIndex:0,filter:'drop-shadow(0 0 24px rgba(124,58,237,.42))' }} />
+      <Shape3D type="bag"  style={{ position:'fixed',top:'38%',left:8,  width:90, height:90, opacity:.45,animation:'floatE 14s ease-in-out infinite',    zIndex:0,filter:'drop-shadow(0 0 16px rgba(124,58,237,.35))' }} />
+      <Shape3D type="star" style={{ position:'fixed',top:'45%',right:10,width:80, height:80, opacity:.4, animation:'floatA 11s ease-in-out 2s infinite', zIndex:0,filter:'drop-shadow(0 0 14px rgba(167,139,250,.3))' }} />
 
-      <div style={{ position: 'relative', zIndex: 1, minHeight: '100vh', fontFamily: "'Sora', sans-serif" }}>
+      <div style={{ position:'relative', zIndex:1, minHeight:'100vh', fontFamily:"'Sora', sans-serif" }}>
 
-        {/* ── Navbar ── */}
+        {/* Navbar */}
         <header style={{
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          padding: '0 32px', height: 60,
-          background: 'rgba(0,0,0,.72)', borderBottom: '1px solid rgba(109,40,217,.2)',
-          backdropFilter: 'blur(22px)', position: 'sticky', top: 0, zIndex: 50,
+          display:'flex', alignItems:'center', justifyContent:'space-between',
+          padding:'0 32px', height:60,
+          background:'rgba(0,0,0,.72)', borderBottom:'1px solid rgba(109,40,217,.2)',
+          backdropFilter:'blur(22px)', position:'sticky', top:0, zIndex:50,
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 11 }}>
+          <div style={{ display:'flex', alignItems:'center', gap:11 }}>
             <div style={{
-              width: 38, height: 38, borderRadius: 11, fontSize: 19,
-              background: 'linear-gradient(135deg, #7c3aed, #4c1d95)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              boxShadow: '0 0 22px rgba(124,58,237,.55)',
+              width:38, height:38, borderRadius:11, fontSize:19,
+              background:'linear-gradient(135deg, #7c3aed, #4c1d95)',
+              display:'flex', alignItems:'center', justifyContent:'center',
+              boxShadow:'0 0 22px rgba(124,58,237,.55)',
             }}>🛒</div>
             <div>
-              <div style={{ fontSize: 17, fontWeight: 800, color: '#fff', letterSpacing: '-.4px' }}>
-                Nyatik<span style={{ color: '#a78bfa' }}>Nayan</span>
+              <div style={{ fontSize:17, fontWeight:800, color:'#fff', letterSpacing:'-.4px' }}>
+                Nyatik<span style={{ color:'#a78bfa' }}>Nayan</span>
               </div>
-              <div style={{ fontSize: 9, color: '#4c1d95', letterSpacing: '2.2px', textTransform: 'uppercase' }}>Retail Intelligence</div>
+              <div style={{ fontSize:9, color:'#4c1d95', letterSpacing:'2.2px', textTransform:'uppercase' }}>Retail Intelligence</div>
             </div>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            {[{ label: 'Checkout', path: '/checkout' }, { label: 'Dashboard', path: '/dashboard' }].map(n => (
+          <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+            {[{ label:'Checkout', path:'/checkout' },{ label:'Dashboard', path:'/dashboard' }].map(n => (
               <button key={n.path} className="nav-btn" onClick={() => navigate(n.path)} style={{
-                padding: '5px 16px', borderRadius: 20, fontSize: 12, fontWeight: 500,
-                background: 'transparent', border: '1px solid rgba(109,40,217,.3)', color: '#6d28d9', cursor: 'pointer',
-                transition: 'all .2s',
+                padding:'5px 16px', borderRadius:20, fontSize:12, fontWeight:500,
+                background:'transparent', border:'1px solid rgba(109,40,217,.3)', color:'#6d28d9', cursor:'pointer',
+                transition:'all .2s',
               }}>{n.label}</button>
             ))}
             <button onClick={logout} style={{
-              padding: '6px 18px', borderRadius: 20, fontSize: 12, fontWeight: 700,
-              background: 'linear-gradient(135deg,#7c3aed,#5b21b6)', color: '#fff', border: 'none', cursor: 'pointer',
-              boxShadow: '0 0 20px rgba(124,58,237,.38)',
+              padding:'6px 18px', borderRadius:20, fontSize:12, fontWeight:700,
+              background:'linear-gradient(135deg,#7c3aed,#5b21b6)', color:'#fff', border:'none', cursor:'pointer',
+              boxShadow:'0 0 20px rgba(124,58,237,.38)',
             }}>Sign Out</button>
           </div>
         </header>
 
-        {/* ── Hero ── */}
-        <div style={{ textAlign: 'center', padding: '68px 24px 44px', animation: 'heroIn .85s ease both' }}>
+        {/* Hero */}
+        <div style={{ textAlign:'center', padding:'68px 24px 44px', animation:'heroIn .85s ease both' }}>
           <div style={{
-            display: 'inline-flex', alignItems: 'center', gap: 7,
-            padding: '5px 16px', borderRadius: 22, marginBottom: 30,
-            background: 'rgba(109,40,217,.14)', border: '1px solid rgba(109,40,217,.32)',
-            fontSize: 10, fontWeight: 700, letterSpacing: '1.8px', textTransform: 'uppercase',
-            color: '#a78bfa', fontFamily: 'monospace',
-            backgroundImage: 'linear-gradient(90deg, rgba(109,40,217,.0) 0%, rgba(167,139,250,.12) 50%, rgba(109,40,217,.0) 100%)',
-            backgroundSize: '200% auto',
-            animation: 'badgeShimmer 3.5s linear infinite',
+            display:'inline-flex', alignItems:'center', gap:7,
+            padding:'5px 16px', borderRadius:22, marginBottom:30,
+            background:'rgba(109,40,217,.14)', border:'1px solid rgba(109,40,217,.32)',
+            fontSize:10, fontWeight:700, letterSpacing:'1.8px', textTransform:'uppercase',
+            color:'#a78bfa', fontFamily:'monospace',
+            backgroundImage:'linear-gradient(90deg, rgba(109,40,217,.0) 0%, rgba(167,139,250,.12) 50%, rgba(109,40,217,.0) 100%)',
+            backgroundSize:'200% auto',
+            animation:'badgeShimmer 3.5s linear infinite',
           }}>
-            <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#a78bfa', animation: 'pulse 2s ease-in-out infinite' }} />
-            AI Product Verification
+            <div style={{ width:6, height:6, borderRadius:'50%', background:'#a78bfa', animation:'pulse 2s ease-in-out infinite' }} />
+            AI Product Verification · YOLOv8 + EasyOCR
           </div>
 
           <h1 style={{
-            fontSize: 'clamp(38px,6.5vw,76px)', fontWeight: 800, lineHeight: 1.04,
-            letterSpacing: '-2.5px', color: '#fff', marginBottom: 18, marginTop: 50,
+            fontSize:'clamp(38px,6.5vw,76px)', fontWeight:800, lineHeight:1.04,
+            letterSpacing:'-2.5px', color:'#fff', marginBottom:18, marginTop:50,
           }}>
             Scan, Match &{' '}
-            <span style={{ color: '#a78bfa' }}>Verify</span>
+            <span style={{ color:'#a78bfa' }}>Verify</span>
             <br />in Seconds.
           </h1>
-          <p style={{ fontSize: 16, color: 'rgba(255,255,255,.28)', maxWidth: 520, margin: '0 auto 10px', lineHeight: 1.75, fontWeight: 400 }}>
-            Upload product and barcode images. Our OCR engine extracts text, cross-references your inventory, and delivers an instant match verdict.
+          <p style={{ fontSize:16, color:'rgba(255,255,255,.28)', maxWidth:520, margin:'0 auto 10px', lineHeight:1.75, fontWeight:400 }}>
+            Upload product and barcode images. YOLOv8 + EasyOCR extract and cross-reference your inventory, delivering an instant fraud verdict.
           </p>
 
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 20, marginBottom: 8 }}>
-            <span style={{ fontSize: 10, color: '#3b1f6a', letterSpacing: '1.5px', textTransform: 'uppercase', fontFamily: 'monospace' }}>Trusted by retailers on</span>
-            {['Zomato', 'Blinkit', 'Zepto', 'Amazon'].map(b => (
-              <span key={b} style={{ fontSize: 10, color: '#5b21b6', fontFamily: 'monospace', padding: '2px 8px', borderRadius: 4, border: '1px solid rgba(109,40,217,.2)', background: 'rgba(109,40,217,.06)' }}>{b}</span>
+          <div style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:6, marginTop:20, marginBottom:8 }}>
+            <span style={{ fontSize:10, color:'#3b1f6a', letterSpacing:'1.5px', textTransform:'uppercase', fontFamily:'monospace' }}>Trusted by retailers on</span>
+            {['Zomato','Blinkit','Zepto','Amazon'].map(b => (
+              <span key={b} style={{ fontSize:10, color:'#5b21b6', fontFamily:'monospace', padding:'2px 8px', borderRadius:4, border:'1px solid rgba(109,40,217,.2)', background:'rgba(109,40,217,.06)' }}>{b}</span>
             ))}
           </div>
 
-          <div style={{ display: 'flex', justifyContent: 'center', marginTop: 38 }}>
+          <div style={{ display:'flex', justifyContent:'center', marginTop:38 }}>
             <svg width="1" height="50" viewBox="0 0 1 50"><line x1=".5" y1="0" x2=".5" y2="50" stroke="rgba(109,40,217,.4)" strokeWidth="1" strokeDasharray="4 5" /></svg>
           </div>
         </div>
 
-        {/* ── Stats ticker ── */}
+        {/* Stats ticker */}
         <StatsTicker />
 
-        {/* ── Scan Arena ── */}
+        {/* Scan Arena */}
         <div style={{
-          display: 'grid', gridTemplateColumns: '1fr auto 1fr', gap: 28,
-          padding: '0 32px 38px', maxWidth: 1120, margin: '0 auto', width: '100%', alignItems: 'start',
+          display:'grid', gridTemplateColumns:'1fr auto 1fr', gap:28,
+          padding:'0 32px 38px', maxWidth:1120, margin:'0 auto', width:'100%', alignItems:'start',
         }}>
           <DropZone type="product" analyzing={productAnalyzing} imageB64={product.base64}
             label="Product Image" icon="📦"
             onFile={f => loadImage(f, 'product')}
             onCamera={openCamera}
-            onRemove={() => { setProduct({ base64: null, ocrText: '', ready: false }); setResult(null) }}
+            onRemove={() => { setProduct({ base64:null, ocrText:'', ready:false }); setResult(null) }}
             fileRef={productFileRef}
             product={product} barcode={barcode} />
 
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 10, paddingTop: 86 }}>
+          <div style={{ display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:10, paddingTop:86 }}>
             <svg width="1" height="54" viewBox="0 0 1 54"><line x1=".5" y1="0" x2=".5" y2="54" stroke="rgba(109,40,217,.32)" strokeWidth="1" strokeDasharray="4 5" /></svg>
             <div style={{
-              width: 46, height: 46, borderRadius: '50%',
-              background: 'rgba(109,40,217,.1)', border: '1px solid rgba(109,40,217,.32)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontWeight: 800, fontSize: 13, color: '#4c1d95', letterSpacing: 1,
-              boxShadow: '0 0 22px rgba(109,40,217,.18)',
+              width:46, height:46, borderRadius:'50%',
+              background:'rgba(109,40,217,.1)', border:'1px solid rgba(109,40,217,.32)',
+              display:'flex', alignItems:'center', justifyContent:'center',
+              fontWeight:800, fontSize:13, color:'#4c1d95', letterSpacing:1,
+              boxShadow:'0 0 22px rgba(109,40,217,.18)',
             }}>VS</div>
             <svg width="1" height="54" viewBox="0 0 1 54"><line x1=".5" y1="0" x2=".5" y2="54" stroke="rgba(109,40,217,.32)" strokeWidth="1" strokeDasharray="4 5" /></svg>
           </div>
@@ -819,124 +827,154 @@ export default function HomePage({ user, setUser }) {
             label="Barcode Image" icon="🔲"
             onFile={f => loadImage(f, 'barcode')}
             onCamera={openCamera}
-            onRemove={() => { setBarcode({ base64: null, ocrText: '', barcodeValue: '', ready: false }); setResult(null) }}
+            onRemove={() => { setBarcode({ base64:null, ocrText:'', barcodeValue:'', ready:false }); setResult(null) }}
             fileRef={barcodeFileRef}
             product={product} barcode={barcode} />
         </div>
 
-        {/* ── Match Button ── */}
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14, padding: '0 32px 44px' }}>
+        {/* Match Button */}
+        <div style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:14, padding:'0 32px 44px' }}>
           <button className="match-btn" onClick={runMatch}
             disabled={!(product.ready && barcode.ready) || matching}
             style={{
-              padding: '17px 70px', border: 'none', borderRadius: 14, cursor: 'pointer',
-              fontFamily: "'Sora', sans-serif", fontSize: 16, fontWeight: 800, letterSpacing: '.2px',
-              background: 'linear-gradient(135deg, #7c3aed, #5b21b6)',
-              color: '#fff', transition: 'transform .2s, box-shadow .3s',
-              animation: (product.ready && barcode.ready && !matching) ? 'matchGlow 2.8s ease-in-out infinite' : 'none',
-              boxShadow: '0 4px 32px rgba(124,58,237,.38)',
-              opacity: (!(product.ready && barcode.ready) || matching) ? .32 : 1,
-              display: 'flex', alignItems: 'center', gap: 11,
+              padding:'17px 70px', border:'none', borderRadius:14, cursor:'pointer',
+              fontFamily:"'Sora', sans-serif", fontSize:16, fontWeight:800, letterSpacing:'.2px',
+              background:'linear-gradient(135deg, #7c3aed, #5b21b6)',
+              color:'#fff', transition:'transform .2s, box-shadow .3s',
+              animation:(product.ready && barcode.ready && !matching) ? 'matchGlow 2.8s ease-in-out infinite' : 'none',
+              boxShadow:'0 4px 32px rgba(124,58,237,.38)',
+              opacity:(!(product.ready && barcode.ready) || matching) ? .32 : 1,
+              display:'flex', alignItems:'center', gap:11,
             }}>
             {matching
-              ? <><span style={{ display: 'inline-block', width: 16, height: 16, border: '2px solid rgba(255,255,255,.28)', borderTopColor: '#fff', borderRadius: '50%', animation: 'spin .7s linear infinite' }} />Verifying…</>
-              : '⚡ Run Match Verification'}
+              ? <><span style={{ display:'inline-block', width:16, height:16, border:'2px solid rgba(255,255,255,.28)', borderTopColor:'#fff', borderRadius:'50%', animation:'spin .7s linear infinite' }} />Verifying…</>
+              : '⚡ Run AI Verification'}
           </button>
-          <p style={{ fontSize: 11, color: 'rgba(109,40,217,.65)', fontFamily: 'monospace', letterSpacing: '.6px' }}>
-            Both images required · OCR + inventory cross-check
+          <p style={{ fontSize:11, color:'rgba(109,40,217,.65)', fontFamily:'monospace', letterSpacing:'.6px' }}>
+            YOLOv8 + EasyOCR · PostgreSQL inventory · Fraud detection
           </p>
         </div>
 
         {/* ── Result Panel ── */}
         {result && (
-          <div style={{ maxWidth: 1120, margin: '0 auto', width: '100%', padding: '0 32px 64px', animation: 'resultIn .6s ease both' }}>
+          <div style={{ maxWidth:1120, margin:'0 auto', width:'100%', padding:'0 32px 64px', animation:'resultIn .6s ease both' }}>
             <BrowserCard glowColor={rg[result.type]} urlLabel="smartretail.ai/result">
+
+              {/* Header row */}
               <div style={{
-                padding: '24px 28px', display: 'flex', alignItems: 'center', gap: 20,
-                borderBottom: '1px solid rgba(255,255,255,.045)',
+                padding:'24px 28px', display:'flex', alignItems:'center', gap:20,
+                borderBottom:'1px solid rgba(255,255,255,.045)',
                 background: rb[result.type],
               }}>
                 <div style={{
-                  width: 64, height: 64, borderRadius: 16, fontSize: 28,
-                  background: `rgba(${result.type === 'match' ? '134,239,172' : result.type === 'mismatch' ? '252,165,165' : '252,211,77'},.1)`,
-                  border: `1px solid ${rc[result.type]}38`,
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontFamily: 'monospace', fontWeight: 900, color: rc[result.type],
-                  boxShadow: `0 0 26px ${rg[result.type]}40`,
-                  flexShrink: 0,
+                  width:64, height:64, borderRadius:16, fontSize:28,
+                  background:`rgba(${result.type==='match'?'134,239,172':result.type==='mismatch'?'252,165,165':'252,211,77'},.1)`,
+                  border:`1px solid ${rc[result.type]}38`,
+                  display:'flex', alignItems:'center', justifyContent:'center',
+                  fontFamily:'monospace', fontWeight:900, color:rc[result.type],
+                  boxShadow:`0 0 26px ${rg[result.type]}40`,
+                  flexShrink:0,
                 }}>{result.icon}</div>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 28, fontWeight: 800, letterSpacing: '-.6px', color: rc[result.type] }}>{result.verdict}</div>
-                  <div style={{ fontSize: 13, color: 'rgba(255,255,255,.38)', marginTop: 5, lineHeight: 1.55 }}>{result.sub}</div>
+                <div style={{ flex:1 }}>
+                  <div style={{ fontSize:28, fontWeight:800, letterSpacing:'-.6px', color:rc[result.type] }}>{result.verdict}</div>
+                  <div style={{ fontSize:13, color:'rgba(255,255,255,.38)', marginTop:5, lineHeight:1.55 }}>{result.sub}</div>
                 </div>
-                <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                  <div style={{ fontSize: 10, color: 'rgba(255,255,255,.28)', letterSpacing: '1.2px', textTransform: 'uppercase', marginBottom: 5, fontFamily: 'monospace' }}>Confidence</div>
-                  <div style={{ fontSize: 40, fontWeight: 800, color: rc[result.type], fontFamily: 'monospace', lineHeight: 1 }}>{result.confidence}%</div>
+                <div style={{ textAlign:'right', flexShrink:0 }}>
+                  <div style={{ fontSize:10, color:'rgba(255,255,255,.28)', letterSpacing:'1.2px', textTransform:'uppercase', marginBottom:5, fontFamily:'monospace' }}>Confidence</div>
+                  <div style={{ fontSize:40, fontWeight:800, color:rc[result.type], fontFamily:'monospace', lineHeight:1 }}>{result.confidence}%</div>
                 </div>
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr' }}>
+              {/* Two-column detail */}
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr' }}>
                 {[
                   {
-                    label: 'Product Analysis', color: '#a78bfa',
-                    rows: [['OCR Text', result.productText?.slice(0, 200) || '(empty)'], ['Matching tokens', result.overlap?.slice(0, 8).join(', ') || 'none']],
+                    label:'Product Analysis', color:'#a78bfa',
+                    rows:[
+                      ['OCR Text',    result.productText?.slice(0,200) || '(empty)'],
+                      ['YOLO Label',  result.yoloLabel  || '(not detected)'],
+                      ['Fraud Risk',  result.fraudRisk !== undefined ? `${(result.fraudRisk*100).toFixed(0)}%` : 'N/A'],
+                    ],
                   },
                   {
-                    label: 'Barcode Analysis', color: '#c4b5fd',
-                    rows: [['Decoded barcode', result.barcodeVal || '(not decoded)'], ['Inventory', result.inventoryResult?.found ? `In stock: ${result.inventoryResult.product_name || ''}` : 'Not in inventory']],
-                  }
+                    label:'Barcode Analysis', color:'#c4b5fd',
+                    rows:[
+                      ['Decoded barcode', result.barcodeVal       || '(not decoded)'],
+                      ['Product in DB',   result.productName      || 'Not found'],
+                      ['Fraud Type',      result.fraudType        || 'None'],
+                    ],
+                  },
                 ].map((col, i) => (
-                  <div key={i} style={{ padding: '20px 28px', borderRight: i === 0 ? '1px solid rgba(255,255,255,.045)' : 'none' }}>
-                    <div style={{ fontSize: 9, letterSpacing: '1.8px', textTransform: 'uppercase', marginBottom: 14, fontFamily: 'monospace', fontWeight: 700, color: col.color }}>{col.label}</div>
+                  <div key={i} style={{ padding:'20px 28px', borderRight: i===0 ? '1px solid rgba(255,255,255,.045)' : 'none' }}>
+                    <div style={{ fontSize:9, letterSpacing:'1.8px', textTransform:'uppercase', marginBottom:14, fontFamily:'monospace', fontWeight:700, color:col.color }}>{col.label}</div>
                     {col.rows.map(([k, v], j) => (
-                      <div key={j} style={{ marginBottom: 14 }}>
-                        <div style={{ fontSize: 10, color: 'rgba(109,40,217,.8)', letterSpacing: '.6px', textTransform: 'uppercase', marginBottom: 3 }}>{k}</div>
-                        <div style={{ fontSize: 13, color: '#e9d5ff', fontFamily: 'monospace', wordBreak: 'break-all', lineHeight: 1.55 }}>{v}</div>
+                      <div key={j} style={{ marginBottom:14 }}>
+                        <div style={{ fontSize:10, color:'rgba(109,40,217,.8)', letterSpacing:'.6px', textTransform:'uppercase', marginBottom:3 }}>{k}</div>
+                        <div style={{ fontSize:13, color:'#e9d5ff', fontFamily:'monospace', wordBreak:'break-all', lineHeight:1.55 }}>{v}</div>
                       </div>
                     ))}
                   </div>
                 ))}
               </div>
+
+              {/* Fraud narrative banner — shows only on mismatch */}
+              {result.type !== 'match' && result.fraudType && (
+                <div style={{
+                  margin:'0 28px 20px', padding:'14px 18px', borderRadius:10,
+                  background:'rgba(252,165,165,.06)', border:'1px solid rgba(252,165,165,.22)',
+                  fontSize:13, color:'#fca5a5', fontFamily:'monospace', lineHeight:1.65,
+                  display:'flex', gap:10, alignItems:'flex-start',
+                }}>
+                  <span style={{ fontSize:18, flexShrink:0 }}>⚠️</span>
+                  <span>
+                    <strong>Fraud Alert:</strong> Barcode indicates{' '}
+                    <em>{result.productName || 'unknown product'}</em> but visual analysis
+                    returned <em>{result.yoloLabel || result.productText?.slice(0,60) || 'unreadable label'}</em>.{' '}
+                    Trust score: <strong>{result.confidence}%</strong>. Hold transaction and call supervisor.
+                  </span>
+                </div>
+              )}
+
             </BrowserCard>
           </div>
         )}
       </div>
 
-      {/* ── Camera Modal ── */}
+      {/* Camera Modal */}
       {camOpen && (
-        <div onClick={e => { if (e.target === e.currentTarget) closeCamera() }}
-          style={{ position: 'fixed', inset: 0, zIndex: 200, background: 'rgba(0,0,0,.93)', backdropFilter: 'blur(14px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
-          <BrowserCard glowColor="#7c3aed" style={{ width: '100%', maxWidth: 520 }} urlLabel="smartretail.ai/camera">
-            <div style={{ padding: '13px 18px', borderBottom: '1px solid rgba(109,40,217,.2)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <span style={{ fontSize: 14, fontWeight: 700, color: '#e9d5ff', fontFamily: "'Sora', sans-serif" }}>
-                {camTarget === 'product' ? '📦 Capture Product' : '🔲 Capture Barcode'}
+        <div onClick={e => { if (e.target===e.currentTarget) closeCamera() }}
+          style={{ position:'fixed', inset:0, zIndex:200, background:'rgba(0,0,0,.93)', backdropFilter:'blur(14px)', display:'flex', alignItems:'center', justifyContent:'center', padding:24 }}>
+          <BrowserCard glowColor="#7c3aed" style={{ width:'100%', maxWidth:520 }} urlLabel="smartretail.ai/camera">
+            <div style={{ padding:'13px 18px', borderBottom:'1px solid rgba(109,40,217,.2)', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+              <span style={{ fontSize:14, fontWeight:700, color:'#e9d5ff', fontFamily:"'Sora', sans-serif" }}>
+                {camTarget==='product' ? '📦 Capture Product' : '🔲 Capture Barcode'}
               </span>
-              <button onClick={closeCamera} style={{ width: 28, height: 28, borderRadius: '50%', background: 'rgba(239,68,68,.14)', border: '1px solid rgba(239,68,68,.28)', color: '#f87171', fontSize: 14, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
+              <button onClick={closeCamera} style={{ width:28, height:28, borderRadius:'50%', background:'rgba(239,68,68,.14)', border:'1px solid rgba(239,68,68,.28)', color:'#f87171', fontSize:14, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center' }}>✕</button>
             </div>
-            <div style={{ position: 'relative', aspectRatio: '4/3', background: '#000', overflow: 'hidden' }}>
-              <video ref={camVideoRef} autoPlay playsInline muted style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-              <div style={{ position: 'absolute', left: '8%', right: '8%', height: 2, background: 'linear-gradient(90deg,transparent,#a78bfa,transparent)', boxShadow: '0 0 14px #7c3aed', animation: 'scanLine 2s ease-in-out infinite' }} />
+            <div style={{ position:'relative', aspectRatio:'4/3', background:'#000', overflow:'hidden' }}>
+              <video ref={camVideoRef} autoPlay playsInline muted style={{ width:'100%', height:'100%', objectFit:'cover' }} />
+              <div style={{ position:'absolute', left:'8%', right:'8%', height:2, background:'linear-gradient(90deg,transparent,#a78bfa,transparent)', boxShadow:'0 0 14px #7c3aed', animation:'scanLine 2s ease-in-out infinite' }} />
             </div>
-            <div style={{ padding: 14, display: 'flex', gap: 10 }}>
-              <button onClick={captureFromCamera} style={{ flex: 1, padding: 12, border: 'none', borderRadius: 10, cursor: 'pointer', fontFamily: "'Sora', sans-serif", fontSize: 14, fontWeight: 700, background: 'linear-gradient(135deg,#7c3aed,#5b21b6)', color: '#fff' }}>📸 Capture</button>
-              <button onClick={closeCamera} style={{ padding: '12px 18px', borderRadius: 10, cursor: 'pointer', background: 'transparent', border: '1px solid rgba(109,40,217,.28)', color: '#6d28d9', fontSize: 13 }}>Cancel</button>
+            <div style={{ padding:14, display:'flex', gap:10 }}>
+              <button onClick={captureFromCamera} style={{ flex:1, padding:12, border:'none', borderRadius:10, cursor:'pointer', fontFamily:"'Sora', sans-serif", fontSize:14, fontWeight:700, background:'linear-gradient(135deg,#7c3aed,#5b21b6)', color:'#fff' }}>📸 Capture</button>
+              <button onClick={closeCamera} style={{ padding:'12px 18px', borderRadius:10, cursor:'pointer', background:'transparent', border:'1px solid rgba(109,40,217,.28)', color:'#6d28d9', fontSize:13 }}>Cancel</button>
             </div>
           </BrowserCard>
         </div>
       )}
 
-      {/* ── Toast ── */}
+      {/* Toast */}
       <div style={{
-        position: 'fixed', bottom: 28, right: 28, zIndex: 999,
-        padding: '12px 20px', borderRadius: 12, fontSize: 13, fontWeight: 500,
-        display: 'flex', alignItems: 'center', gap: 8, pointerEvents: 'none',
+        position:'fixed', bottom:28, right:28, zIndex:999,
+        padding:'12px 20px', borderRadius:12, fontSize:13, fontWeight:500,
+        display:'flex', alignItems:'center', gap:8, pointerEvents:'none',
         transform: toast.show ? 'translateY(0)' : 'translateY(84px)',
-        opacity: toast.show ? 1 : 0, transition: 'transform .42s ease, opacity .42s ease',
-        maxWidth: 320, fontFamily: "'Sora', sans-serif",
-        background: toast.type === 'success' ? 'rgba(22,163,74,.14)' : toast.type === 'error' ? 'rgba(220,38,38,.14)' : 'rgba(109,40,217,.14)',
-        border: `1px solid ${toast.type === 'success' ? 'rgba(134,239,172,.38)' : toast.type === 'error' ? 'rgba(252,165,165,.38)' : 'rgba(167,139,250,.38)'}`,
-        color: toast.type === 'success' ? '#86efac' : toast.type === 'error' ? '#fca5a5' : '#a78bfa',
-        backdropFilter: 'blur(14px)',
+        opacity: toast.show ? 1 : 0, transition:'transform .42s ease, opacity .42s ease',
+        maxWidth:320, fontFamily:"'Sora', sans-serif",
+        background: toast.type==='success'?'rgba(22,163,74,.14)':toast.type==='error'?'rgba(220,38,38,.14)':'rgba(109,40,217,.14)',
+        border:`1px solid ${toast.type==='success'?'rgba(134,239,172,.38)':toast.type==='error'?'rgba(252,165,165,.38)':'rgba(167,139,250,.38)'}`,
+        color: toast.type==='success'?'#86efac':toast.type==='error'?'#fca5a5':'#a78bfa',
+        backdropFilter:'blur(14px)',
       }}>
         {toast.msg}
       </div>

@@ -35,7 +35,7 @@ app.add_middleware(
 # ── DB + Redis ─────────────────────────────────────────────────────────────────
 DB_URL     = os.getenv("DATABASE_URL", "postgresql://postgres:1221@localhost:5432/Netra")
 REDIS_URL  = os.getenv("REDIS_URL", "redis://localhost:6379")
-MODEL_PATH = os.getenv("MODEL_PATH", "./models/best.pt")
+MODEL_PATH = os.getenv("MODEL_PATH", "./AI_Model/best_final.pt")
 
 db_pool    = None
 redis_pool = None

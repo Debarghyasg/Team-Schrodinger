@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { useState, useEffect } from 'react'
 import AdminLoginPage    from './admin-login.jsx'
+import CustomerLoginPage from './customer-login.jsx'
 import SignupPage        from './signup.jsx'
 import HomePage          from './home.jsx'
 import AdminDashboard    from './admin-dashboard.jsx'
@@ -73,6 +74,7 @@ export default function App() {
         {/* ── Public: Admin login ── */}
         <Route path="/"       element={<AdminLoginPage setUser={setUser} />} />
         <Route path="/signup" element={<SignupPage />} />
+        <Route path="/customer" element={<CustomerLoginPage setUser={setUser} />} />
 
         {/* ── Protected: Admin logged in → all pages accessible ── */}
         <Route path="/home"        element={<AuthGuard user={user}><HomePage        user={user} setUser={setUser} /></AuthGuard>} />

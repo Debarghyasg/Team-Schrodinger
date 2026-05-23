@@ -1,58 +1,5 @@
-import { useState, useRef, useEffect, useCallback } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-
-/* ─── Mascot Intro Animation ────────────────────────────────────────── */
-function MascotIntro() {
-  const [phase, setPhase] = useState('enter')
-
-  useEffect(() => {
-    const t1 = setTimeout(() => setPhase('zoom'),  600)
-    const t2 = setTimeout(() => setPhase('exit'),  2400)
-    const t3 = setTimeout(() => setPhase('done'),  3000)
-    return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3) }
-  }, [])
-
-  if (phase === 'done') return null
-
-  return (
-    <div style={{
-      position: 'fixed', inset: 0, zIndex: 9999,
-      display: 'flex', alignItems: 'flex-end', justifyContent: 'center',
-      pointerEvents: 'none', overflow: 'hidden',
-    }}>
-      <div style={{
-        position: 'absolute', bottom: 0, left: '50%', transform: 'translateX(-50%)',
-        width: 340, height: 120,
-        background: 'radial-gradient(ellipse, rgba(124,58,237,.32) 0%, transparent 70%)',
-        filter: 'blur(12px)',
-        opacity: phase === 'zoom' ? 1 : 0,
-        transition: 'opacity 0.5s ease',
-      }} />
-      <div style={{
-        position: 'relative',
-        width: 240, height: 280, marginBottom: -8,
-        transform: phase === 'enter' ? 'translateY(110%)' : phase === 'exit' ? 'translateY(110%)' : 'translateY(0)',
-        transition: phase === 'enter' ? 'transform 0.6s cubic-bezier(0.34,1.56,0.64,1)' : phase === 'exit' ? 'transform 0.55s cubic-bezier(0.55,0,1,0.45)' : 'none',
-        animation: phase === 'zoom' ? 'mascotBob 1s ease-in-out infinite' : 'none',
-      }}>
-        {phase === 'zoom' && (
-          <>
-            <div style={{ position: 'absolute', top: 68, left: 4, width: 76, height: 76, borderRadius: '50%', border: '2px solid rgba(167,139,250,.75)', animation: 'lensRing 1s ease-in-out infinite', pointerEvents: 'none' }} />
-            <div style={{ position: 'absolute', top: 78, left: 14, width: 56, height: 56, borderRadius: '50%', border: '1px solid rgba(167,139,250,.35)', animation: 'lensRing 1s ease-in-out 0.15s infinite', pointerEvents: 'none' }} />
-          </>
-        )}
-        <img src="/mascot.png" alt="NyatikNayan mascot" style={{ width: '100%', height: '100%', objectFit: 'contain', objectPosition: 'bottom', filter: 'drop-shadow(0 0 32px rgba(124,58,237,.65)) drop-shadow(0 10px 20px rgba(0,0,0,.9))', animation: phase === 'zoom' ? 'lensZoom 1s ease-in-out infinite' : 'none' }} />
-        {phase === 'zoom' && (
-          <div style={{ position: 'absolute', top: -14, right: -38, background: 'rgba(8,3,18,.96)', border: '1px solid rgba(124,58,237,.55)', borderRadius: '12px 12px 12px 3px', padding: '7px 13px', fontSize: 11, fontWeight: 700, color: '#a78bfa', fontFamily: 'monospace', letterSpacing: '1.2px', whiteSpace: 'nowrap', boxShadow: '0 0 22px rgba(124,58,237,.4), inset 0 0 0 1px rgba(255,255,255,.04)', animation: 'bubblePop 0.35s cubic-bezier(0.34,1.56,0.64,1) both' }}>
-            Let's verify! 🔍
-            <div style={{ position: 'absolute', bottom: -6, left: 10, width: 10, height: 10, background: 'rgba(8,3,18,.96)', border: '1px solid rgba(124,58,237,.55)', borderTop: 'none', borderRight: 'none', transform: 'rotate(-45deg)' }} />
-          </div>
-        )}
-      </div>
-    </div>
-  )
-}
-
 
 /* ─── Particle Field ─────────────────────────────────────────────────── */
 function ParticleField() {
@@ -77,7 +24,6 @@ function ParticleField() {
     </div>
   )
 }
-
 
 /* ─── Stats Ticker ───────────────────────────────────────────────────── */
 function StatsTicker() {
@@ -111,683 +57,280 @@ function StatsTicker() {
   )
 }
 
-
-/* ─── Scan Capture (product image + typed barcode) ───────────────────── */
-function ScanCapture({ onVerified, scanning, setScanning }) {
-  const [productB64, setProductB64]   = useState(null)
-  const [barcodeInput, setBarcodeInput] = useState('')
-  const [step, setStep]               = useState('idle')
-  const [camOpen, setCamOpen]         = useState(false)
-  const [flash, setFlash]             = useState(false)
-  const [inputFocused, setInputFocused] = useState(false)
-  const productRef      = useRef(null)
-  const barcodeFieldRef = useRef(null)
-  const videoRef        = useRef(null)
-  const streamRef       = useRef(null)
-
-  useEffect(() => {
-    const src = 'https://cdnjs.cloudflare.com/ajax/libs/tesseract.js/5.0.2/tesseract.min.js'
-    if (!document.querySelector(`script[src="${src}"]`)) {
-      const s = document.createElement('script'); s.src = src; document.head.appendChild(s)
-    }
-  }, [])
-
-  useEffect(() => {
-    if (step === 'barcode') {
-      const t = setTimeout(() => barcodeFieldRef.current?.focus(), 120)
-      return () => clearTimeout(t)
-    }
-  }, [step])
-
-  function readFile(file, setter, type) {
-    const r = new FileReader()
-    r.onload = e => { setter(e.target.result); setStep(type === 'product' ? 'barcode' : 'ready') }
-    r.readAsDataURL(file)
-  }
-
-  async function openCamera() {
-    setCamOpen(true)
-    try {
-      const s = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
-      streamRef.current = s
-      if (videoRef.current) videoRef.current.srcObject = s
-    } catch { closeCamera() }
-  }
-
-  function closeCamera() {
-    streamRef.current?.getTracks().forEach(t => t.stop())
-    streamRef.current = null
-    if (videoRef.current) videoRef.current.srcObject = null
-    setCamOpen(false)
-  }
-
-  function captureFromCamera() {
-    const v = videoRef.current
-    if (!v?.videoWidth) return
-    const c = document.createElement('canvas')
-    c.width = v.videoWidth; c.height = v.videoHeight
-    c.getContext('2d').drawImage(v, 0, 0)
-    const b64 = c.toDataURL('image/jpeg', .9)
-    closeCamera()
-    setProductB64(b64); setStep('barcode')
-  }
-
-
-  function submitBarcode() {
-    const v = barcodeInput.trim()
-    if (v.length < 4 || !productB64 || scanning) return
-    setStep('ready')
-  }
-
-  async function runVerify() {
-    const barcodeValue = barcodeInput.trim()
-    if (!productB64 || !barcodeValue) return
-    setStep('verifying'); setScanning(true)
-    setFlash(true); setTimeout(() => setFlash(false), 350)
-
-    let productOcrText = ''
-    try {
-      if (window.Tesseract) {
-        const w = await window.Tesseract.createWorker('eng')
-        const { data: { text } } = await w.recognize(productB64)
-        await w.terminate()
-        productOcrText = text.trim().replace(/\s+/g, ' ')
-      }
-    } catch {}
-
-    try {
-      const res = await fetch('/api/checkout/match-verify', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({
-          barcode:     barcodeValue,
-          product_ocr: productOcrText || '',
-          barcode_ocr: barcodeValue,
-          yolo_label:  '',
-          image_b64:   productB64?.split(',')[1] || null,
-        }),
-      })
-      if (!res.ok) throw new Error(`${res.status}`)
-      const data = await res.json()
-      await onVerified(data, barcodeValue, productB64)
-    } catch (err) {
-      await onVerified(null, barcodeValue, productB64, err.message)
-    } finally {
-      setProductB64(null); setBarcodeInput('')
-      setStep('idle'); setScanning(false)
-    }
-  }
-
-  useEffect(() => {
-    if (step === 'ready') runVerify()
-  }, [step])
-
-  const stepMeta = {
-    idle:      { label: 'Step 1 — Product image',   color: '#a78bfa', icon: '📦' },
-    product:   { label: 'Step 1 — Product image',   color: '#a78bfa', icon: '📦' },
-    barcode:   { label: 'Step 2 — Enter barcode #', color: '#c4b5fd', icon: '⌨️' },
-    ready:     { label: 'Sending to AI…',           color: '#e9d5ff', icon: '⚡' },
-    verifying: { label: 'AI Verifying…',            color: '#e9d5ff', icon: '⚡' },
-  }
-  const sm = stepMeta[step]
-
-
+/* ─── Feature Card ───────────────────────────────────────────────────── */
+function FeatureCard({ icon, title, description, delay = '0s' }) {
   return (
-    <>
-      {camOpen && (
-        <div onClick={e => e.target === e.currentTarget && closeCamera()}
-          style={{ position:'fixed',inset:0,zIndex:300,background:'rgba(0,0,0,.92)',backdropFilter:'blur(16px)',display:'flex',alignItems:'center',justifyContent:'center',padding:20 }}>
-          <div style={{ width:'100%',maxWidth:480,borderRadius:20,overflow:'hidden',border:'1px solid rgba(124,58,237,.38)',background:'rgba(8,3,18,.95)' }}>
-            <div style={{ padding:'12px 18px',borderBottom:'1px solid rgba(109,40,217,.22)',display:'flex',alignItems:'center',justifyContent:'space-between' }}>
-              <span style={{ fontFamily:"'Sora',sans-serif",fontSize:14,fontWeight:700,color:'#e9d5ff' }}>📦 Capture Product</span>
-              <button onClick={closeCamera} style={{ width:26,height:26,borderRadius:'50%',background:'rgba(239,68,68,.14)',border:'none',color:'#f87171',fontSize:13,cursor:'pointer' }}>✕</button>
-            </div>
-            <div style={{ position:'relative',aspectRatio:'4/3',background:'#000',overflow:'hidden' }}>
-              <video ref={videoRef} autoPlay playsInline muted style={{ width:'100%',height:'100%',objectFit:'cover' }} />
-              <div style={{ position:'absolute',left:'10%',right:'10%',height:2,background:'linear-gradient(90deg,transparent,#a78bfa,transparent)',boxShadow:'0 0 14px #7c3aed',animation:'scanLine 1.8s ease-in-out infinite' }} />
-            </div>
-            <div style={{ padding:14,display:'flex',gap:10 }}>
-              <button onClick={captureFromCamera} style={{ flex:1,padding:12,border:'none',borderRadius:10,cursor:'pointer',fontFamily:"'Sora',sans-serif",fontSize:14,fontWeight:700,background:'linear-gradient(135deg,#7c3aed,#5b21b6)',color:'#fff' }}>📸 Capture</button>
-              <button onClick={closeCamera} style={{ padding:'12px 16px',borderRadius:10,cursor:'pointer',background:'transparent',border:'1px solid rgba(109,40,217,.3)',color:'#5b21b6',fontSize:13 }}>Cancel</button>
-            </div>
-          </div>
-        </div>
-      )}
-
+    <div style={{
+      background: 'rgba(8,3,18,.88)',
+      border: '1px solid rgba(109,40,217,.22)',
+      borderRadius: 18,
+      padding: '28px 24px',
+      backdropFilter: 'blur(14px)',
+      animation: `cardIn .6s ${delay} cubic-bezier(.22,1,.36,1) both`,
+      position: 'relative',
+      overflow: 'hidden',
+    }}>
+      <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 1, background: 'linear-gradient(90deg,transparent,#7c3aed,transparent)', animation: 'shimmer 3s ease-in-out infinite' }} />
       <div style={{
-        background: flash ? 'rgba(124,58,237,.07)' : 'rgba(8,3,18,.88)',
-        border: `1px solid ${sm.color}38`,
-        borderRadius: 20, overflow: 'hidden', position: 'relative',
-        transition: 'background .2s', backdropFilter: 'blur(14px)',
-        boxShadow: `0 0 44px ${sm.color}1a`,
-      }}>
-        <div style={{ position:'absolute',top:0,left:0,right:0,height:2,background:`linear-gradient(90deg,transparent,${sm.color},transparent)`,animation:'shimmer 2.5s ease-in-out infinite' }} />
-        <div style={{ padding:'16px 20px',borderBottom:'1px solid rgba(109,40,217,.18)',display:'flex',alignItems:'center',gap:12 }}>
-          <div style={{ width:38,height:38,borderRadius:10,background:`rgba(109,40,217,.15)`,border:`1px solid ${sm.color}40`,display:'flex',alignItems:'center',justifyContent:'center',fontSize:18,boxShadow:`0 0 14px ${sm.color}30` }}>{sm.icon}</div>
-          <div>
-            <div style={{ fontFamily:"'Sora',sans-serif",fontSize:14,fontWeight:700,color:'#e9d5ff' }}>{sm.label}</div>
-            <div style={{ fontSize:10,color:'#4c1d95',fontFamily:'monospace',letterSpacing:'1px',marginTop:2 }}>
-              {step==='verifying' ? 'YOLOv8 + EasyOCR running…' : 'Upload or capture image'}
-            </div>
-          </div>
-          {step==='verifying' && (
-            <div style={{ marginLeft:'auto',width:20,height:20,border:'2px solid rgba(167,139,250,.25)',borderTopColor:'#a78bfa',borderRadius:'50%',animation:'spin .7s linear infinite' }} />
-          )}
-        </div>
-
-
-        {/* Progress dots */}
-        <div style={{ padding:'12px 20px',display:'flex',alignItems:'center',gap:8 }}>
-          {['product','barcode'].map((s,i) => {
-            const done = (s==='product' && (productB64||step==='barcode'||step==='ready'||step==='verifying')) || (s==='barcode' && ((barcodeInput.trim().length>=4 && (step==='ready'||step==='verifying')) || step==='ready' || step==='verifying'))
-            const active = (s==='product' && (step==='idle'||step==='product')) || (s==='barcode' && step==='barcode')
-            return (
-              <div key={s} style={{ display:'flex',alignItems:'center',gap:8 }}>
-                <div style={{ width:28,height:28,borderRadius:8,display:'flex',alignItems:'center',justifyContent:'center',fontSize:13,fontWeight:700,fontFamily:'monospace',background:done?'rgba(134,239,172,.1)':active?'rgba(124,58,237,.12)':'rgba(255,255,255,.03)',border:`1px solid ${done?'rgba(134,239,172,.4)':active?'rgba(124,58,237,.4)':'rgba(109,40,217,.2)'}`,color:done?'#86efac':active?'#a78bfa':'#4c1d95',transition:'all .3s' }}>
-                  {done ? '✓' : i+1}
-                </div>
-                <span style={{ fontSize:11,color:done?'#86efac':active?'#a78bfa':'#4c1d95',fontFamily:'monospace',letterSpacing:'.5px',transition:'color .3s' }}>
-                  {s==='product'?'Product':'Barcode #'}
-                </span>
-                {i===0 && <div style={{ width:24,height:1,background:productB64?'rgba(134,239,172,.4)':'rgba(109,40,217,.2)',transition:'background .3s' }} />}
-              </div>
-            )
-          })}
-        </div>
-
-        {/* Upload area — product */}
-        {(step==='idle' || step==='product') && !productB64 && (
-          <div style={{ padding:'0 20px 20px' }}>
-            <div onClick={() => productRef.current?.click()}
-              style={{ borderRadius:14,border:'1.5px dashed rgba(124,58,237,.3)',padding:'28px 16px',display:'flex',flexDirection:'column',alignItems:'center',gap:10,cursor:'pointer',background:'rgba(109,40,217,.04)',transition:'border-color .2s,background .2s' }}>
-              <span style={{ fontSize:28 }}>🖼️</span>
-              <span style={{ fontSize:13,color:'#a78bfa',fontFamily:"'Sora',sans-serif" }}>Upload product image</span>
-              <span style={{ fontSize:10,color:'#4c1d95',fontFamily:'monospace',letterSpacing:'.8px' }}>JPG · PNG · WEBP</span>
-            </div>
-            <div style={{ display:'flex',gap:8,marginTop:10 }}>
-              <button onClick={() => productRef.current?.click()} style={{ flex:1,padding:10,borderRadius:10,cursor:'pointer',fontSize:12,fontWeight:600,fontFamily:'monospace',border:'1px solid rgba(124,58,237,.3)',background:'rgba(109,40,217,.08)',color:'#a78bfa' }}>↑ Upload</button>
-              <button onClick={openCamera} style={{ padding:'10px 14px',borderRadius:10,cursor:'pointer',fontSize:14,border:'1px solid rgba(109,40,217,.2)',background:'rgba(255,255,255,.02)',color:'#5b21b6' }}>📷</button>
-            </div>
-            <input ref={productRef} type="file" accept="image/*" style={{ display:'none' }} onChange={e => { if(e.target.files[0]) readFile(e.target.files[0], setProductB64, 'product'); e.target.value='' }} />
-          </div>
-        )}
-
-
-        {/* Barcode # input */}
-        {step==='barcode' && (
-          <div style={{ padding:'4px 20px 20px' }}>
-            {productB64 && (
-              <div style={{ display:'flex',alignItems:'center',gap:10,padding:'8px 10px',marginBottom:12,borderRadius:10,background:'rgba(134,239,172,.06)',border:'1px solid rgba(134,239,172,.2)',fontFamily:'monospace',fontSize:11,color:'#86efac' }}>
-                <img src={productB64} alt="" style={{ width:32,height:32,borderRadius:6,objectFit:'cover',border:'1px solid rgba(134,239,172,.25)' }} />
-                <span>✓ Product image captured</span>
-                <span style={{ marginLeft:'auto',color:'#4c1d95' }}>now type the barcode #</span>
-              </div>
-            )}
-            <div onClick={() => barcodeFieldRef.current?.focus()}
-              style={{ position:'relative', borderRadius:14, padding:2, cursor:'text',
-                background: inputFocused ? 'conic-gradient(from var(--ang,0deg),#a78bfa,#7c3aed,#c4b5fd,#5b21b6,#a78bfa)' : 'linear-gradient(135deg,rgba(167,139,250,.35),rgba(124,58,237,.18))',
-                animation: inputFocused ? 'rotateGrad 3s linear infinite' : 'none',
-                transition:'background .3s',
-                boxShadow: inputFocused ? '0 0 0 4px rgba(124,58,237,.12), 0 0 32px rgba(124,58,237,.25)' : '0 0 0 0 rgba(124,58,237,0)',
-              }}>
-              <div style={{ position:'relative', overflow:'hidden', borderRadius:12, background:'rgba(8,3,18,.95)', padding:'18px 18px 14px' }}>
-                <div style={{ position:'absolute', left:0, right:0, height:2, top:0, background:'linear-gradient(90deg,transparent,#a78bfa,#c4b5fd,#a78bfa,transparent)', boxShadow:'0 0 14px #7c3aed', animation:'barcodeScan 2.4s ease-in-out infinite', opacity: inputFocused ? .9 : .35, transition:'opacity .3s' }} />
-                <div aria-hidden style={{ position:'absolute', inset:0, opacity:.05, pointerEvents:'none', background:'repeating-linear-gradient(90deg,#a78bfa 0,#a78bfa 2px,transparent 2px,transparent 6px)' }} />
-                <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:10, fontFamily:'monospace', fontSize:10, letterSpacing:'1.5px', textTransform:'uppercase', color:'#5b21b6' }}>
-                  <span style={{ fontSize:14 }}>⌨️</span> Barcode Number
-                  <span style={{ marginLeft:'auto', padding:'2px 7px', borderRadius:6, background:'rgba(124,58,237,.12)', border:'1px solid rgba(124,58,237,.25)', color:'#a78bfa', fontSize:9, letterSpacing:'.6px' }}>{barcodeInput.length}/13</span>
-                </div>
-                <input ref={barcodeFieldRef} type="text" inputMode="numeric" autoComplete="off" spellCheck={false} maxLength={20}
-                  value={barcodeInput} onFocus={() => setInputFocused(true)} onBlur={() => setInputFocused(false)}
-                  onChange={e => setBarcodeInput(e.target.value.replace(/\s+/g,''))}
-                  onKeyDown={e => { if (e.key === 'Enter') submitBarcode() }}
-                  placeholder="0000000000000"
-                  style={{ width:'100%', background:'transparent', border:'none', outline:'none', color:'#e9d5ff', fontFamily:'monospace', fontSize:30, fontWeight:600, letterSpacing:'8px', textAlign:'center', padding:'10px 0 14px', caretColor:'#a78bfa', textShadow: inputFocused ? '0 0 18px rgba(167,139,250,.45)' : 'none', transition:'text-shadow .3s' }}
-                />
-              </div>
-            </div>
-            <div style={{ display:'flex', alignItems:'center', gap:10, marginTop:12 }}>
-              <span style={{ flex:1, fontFamily:'monospace', fontSize:10, color:'#4c1d95', letterSpacing:'.6px' }}>
-                ⏎ press <span style={{ color:'#a78bfa' }}>Enter</span> or click verify · {barcodeInput.trim().length<4?'min 4 chars':'ready'}
-              </span>
-              <button onClick={submitBarcode} disabled={barcodeInput.trim().length<4 || scanning}
-                style={{ padding:'10px 16px', borderRadius:10, cursor: barcodeInput.trim().length<4||scanning?'not-allowed':'pointer', fontSize:12, fontWeight:700, fontFamily:'monospace', letterSpacing:'.6px', border:'1px solid rgba(124,58,237,.4)', background: barcodeInput.trim().length<4||scanning ? 'rgba(124,58,237,.05)' : 'linear-gradient(135deg,#7c3aed,#5b21b6)', color: barcodeInput.trim().length<4||scanning ? '#5b21b6' : '#fff', opacity: barcodeInput.trim().length<4||scanning ? .5 : 1, boxShadow: barcodeInput.trim().length>=4 && !scanning ? '0 4px 22px rgba(124,58,237,.4)' : 'none' }}>
-                ⚡ Verify
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* Verifying state */}
-        {step==='verifying' && (
-          <div style={{ padding:'24px 20px',display:'flex',flexDirection:'column',alignItems:'center',gap:12 }}>
-            <div style={{ display:'flex',gap:4 }}>
-              {[0,.15,.3].map(d => <div key={d} style={{ width:7,height:7,borderRadius:'50%',background:'#a78bfa',animation:`bounce .9s ease-in-out ${d}s infinite` }} />)}
-            </div>
-            <span style={{ fontFamily:'monospace',fontSize:11,color:'#a78bfa',letterSpacing:'.8px' }}>YOLO + OCR running…</span>
-          </div>
-        )}
-      </div>
-    </>
-  )
-}
-
-
-/* ─── Cart Item Row ──────────────────────────────────────────────────── */
-function CartRow({ item, onRemove, onQtyChange, index }) {
-  const statusColor = { match: '#86efac', mismatch: '#fca5a5', partial: '#fcd34d' }
-  const sc = statusColor[item.type] || '#c4b5fd'
-  return (
-    <div style={{ display:'flex',alignItems:'center',gap:12,padding:'14px 20px',borderBottom:'1px solid rgba(109,40,217,.1)',animation:'rowIn .35s ease both',animationDelay:`${index*.04}s`,opacity:item.type==='mismatch'?.55:1 }}>
-      <div style={{ width:8,height:8,borderRadius:'50%',background:sc,boxShadow:`0 0 8px ${sc}`,flexShrink:0 }} />
-      <div style={{ width:40,height:40,borderRadius:9,overflow:'hidden',background:'rgba(8,3,18,.6)',border:'1px solid rgba(109,40,217,.2)',flexShrink:0,display:'flex',alignItems:'center',justifyContent:'center',fontSize:18 }}>
-        {item.productThumb ? <img src={item.productThumb} alt="" style={{ width:'100%',height:'100%',objectFit:'cover' }} /> : '📦'}
-      </div>
-      <div style={{ flex:1,minWidth:0 }}>
-        <div style={{ fontFamily:"'Sora',sans-serif",fontSize:13,fontWeight:700,color:item.type==='mismatch'?'#fca5a5':'#e9d5ff',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap' }}>
-          {item.productName || item.barcode || 'Unknown item'}
-        </div>
-        <div style={{ fontFamily:'monospace',fontSize:10,color:'#4c1d95',marginTop:2,letterSpacing:'.5px' }}>
-          {item.barcode || '—'} · {item.type==='match'?'Verified ✓':item.type==='mismatch'?'⚠ Fraud flag':'Partial ⚠'}
-        </div>
-      </div>
-      <div style={{ display:'flex',alignItems:'center',gap:6,flexShrink:0 }}>
-        <button onClick={() => onQtyChange(item.id, -1)} style={{ width:22,height:22,borderRadius:6,border:'1px solid rgba(109,40,217,.25)',background:'rgba(109,40,217,.06)',color:'#a78bfa',fontSize:13,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',fontWeight:700 }}>−</button>
-        <span style={{ fontFamily:'monospace',fontSize:13,color:'#e9d5ff',minWidth:18,textAlign:'center' }}>{item.qty}</span>
-        <button onClick={() => onQtyChange(item.id, +1)} style={{ width:22,height:22,borderRadius:6,border:'1px solid rgba(109,40,217,.25)',background:'rgba(109,40,217,.06)',color:'#a78bfa',fontSize:13,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',fontWeight:700 }}>+</button>
-      </div>
-      <div style={{ fontFamily:'monospace',fontSize:14,fontWeight:600,color:sc,flexShrink:0,minWidth:68,textAlign:'right' }}>
-        {item.price ? `₹${(item.price * item.qty).toFixed(2)}` : '—'}
-      </div>
-      <button onClick={() => onRemove(item.id)} style={{ width:22,height:22,borderRadius:6,border:'none',background:'rgba(252,165,165,.1)',color:'#fca5a5',fontSize:11,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0 }}>✕</button>
+        width: 48, height: 48, borderRadius: 12,
+        background: 'rgba(109,40,217,.12)', border: '1px solid rgba(109,40,217,.25)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        fontSize: 22, marginBottom: 16,
+        boxShadow: '0 0 18px rgba(124,58,237,.25)',
+      }}>{icon}</div>
+      <h3 style={{ fontFamily: "'Sora', sans-serif", fontSize: 16, fontWeight: 700, color: '#e9d5ff', marginBottom: 8, letterSpacing: '-.3px' }}>{title}</h3>
+      <p style={{ fontFamily: "'Sora', sans-serif", fontSize: 13, color: 'rgba(255,255,255,.3)', lineHeight: 1.7 }}>{description}</p>
     </div>
   )
 }
 
-
-/* ─── uid helper ─────────────────────────────────────────────────────── */
-let _uid = 0
-const uid = () => ++_uid
-
-/* ─── Main Page ──────────────────────────────────────────────────────── */
+/* ─── Main Home Page ─────────────────────────────────────────────────── */
 export default function HomePage({ user, setUser }) {
   const navigate = useNavigate()
 
-  const [cart, setCart]             = useState([])
-  const [scanning, setScanning]    = useState(false)
-  const [scannerOpen, setScannerOpen] = useState(false)
-  const [toast, setToast]          = useState({ msg: '', type: '', show: false })
-  const [paid, setPaid]            = useState(false)
-  const [fraudCount, setFraudCount] = useState(0)
-
-  function showToast(msg, type = 'info') {
-    setToast({ msg, type, show: true })
-    setTimeout(() => setToast(t => ({ ...t, show: false })), 4000)
-  }
+  useEffect(() => {
+    const link = document.createElement('link')
+    link.rel = 'stylesheet'
+    link.href = 'https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700;800&display=swap'
+    if (!document.querySelector(`link[href="${link.href}"]`)) document.head.appendChild(link)
+  }, [])
 
   async function logout() {
     await fetch('/api/logout', { method: 'POST', credentials: 'include' })
-    setUser(null); navigate('/')
+    setUser(null)
+    navigate('/')
   }
 
-  function addToCart(item) {
-    setCart(prev => {
-      const existing = prev.findIndex(c => c.barcode && c.barcode === item.barcode)
-      if (existing >= 0) {
-        const next = [...prev]
-        next[existing] = { ...next[existing], qty: next[existing].qty + 1 }
-        return next
-      }
-      return [{ ...item, id: uid(), qty: 1 }, ...prev]
-    })
-  }
-
-
-  const handleVerified = useCallback(async (data, barcodeValue, productB64, errMsg) => {
-    if (errMsg || !data) {
-      showToast(`Verification failed${errMsg ? ': ' + errMsg : ''}`, 'error')
-      return
-    }
-    const type = !data.found ? 'mismatch'
-               : data.match ? 'match'
-               : data.fraud_type === 'LOW_CONFIDENCE' ? 'partial'
-               : 'mismatch'
-    const item = {
-      productName:  data.product_name || 'Unknown',
-      price:        data.price || null,
-      barcode:      barcodeValue || '',
-      confidence:   data.confidence || 0,
-      fraudRisk:    data.fraud_risk || 0,
-      fraudType:    data.fraud_type || null,
-      type,
-      productThumb: productB64 || null,
-    }
-    if (type === 'mismatch') {
-      setFraudCount(f => f + 1)
-      showToast(`Fraud detected — ${data.fraud_type || 'mismatch'} · Item flagged`, 'error')
-    } else if (type === 'partial') {
-      showToast(`Partial match — ${data.product_name} · Adding with flag`, 'warn')
-    } else {
-      showToast(`${data.product_name} verified · Added to cart`, 'success')
-    }
-    addToCart(item)
-    setScannerOpen(false)
-  }, [])
-
-  function handleQtyChange(id, delta) {
-    setCart(prev => prev.map(c => c.id === id ? { ...c, qty: Math.max(1, c.qty + delta) } : c))
-  }
-
-  function handleRemove(id) {
-    setCart(prev => prev.filter(c => c.id !== id))
-  }
-
-  const verifiedItems = cart.filter(c => c.type === 'match' || c.type === 'partial')
-  const flaggedItems  = cart.filter(c => c.type === 'mismatch')
-  const subtotal      = verifiedItems.reduce((s, c) => s + (c.price || 0) * c.qty, 0)
-  const gst           = subtotal * 0.18
-  const total         = subtotal + gst
-
-
-  async function handlePay() {
-    if (cart.length === 0) return
-    if (verifiedItems.length === 0) {
-      showToast('Cannot pay — no verified items in cart.', 'error')
-      return
-    }
-    setScanning(true)
-    try {
-      const payload = {
-        items: verifiedItems.filter(c => c.barcode).map(c => ({ barcode: c.barcode, qty: c.qty })),
-      }
-      const res = await fetch('/api/checkout/pay', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify(payload),
-      })
-      const data = await res.json().catch(() => ({}))
-      if (!res.ok || !data.ok) {
-        const reason = data?.notFound?.length ? `${data.notFound.length} item(s) missing from inventory`
-          : data?.insufficient?.length ? `${data.insufficient.length} item(s) had insufficient stock`
-          : (data?.message || `Server error ${res.status}`)
-        showToast(`Payment failed — ${reason}`, 'error')
-        setScanning(false)
-        return
-      }
-      if (Array.isArray(data.lowStock) && data.lowStock.length > 0) {
-        const names = data.lowStock.map(p => p.product_name).join(', ')
-        showToast(`Low stock — email sent · ${names}`, 'warn')
-      } else {
-        showToast('Transaction complete — receipt generated', 'success')
-      }
-      setScanning(false)
-      setPaid(true)
-      setTimeout(() => { setPaid(false); setCart([]) }, 3200)
-    } catch (err) {
-      showToast(`Payment error: ${err.message}`, 'error')
-      setScanning(false)
-    }
-  }
-
-
-  /* ── Paid screen ── */
-  if (paid) return (
-    <>
-      <style>{globalCSS}</style>
-      <div style={{ minHeight:'100vh',background:'#000',display:'flex',alignItems:'center',justifyContent:'center',flexDirection:'column',gap:16 }}>
-        <div style={{ position:'fixed',inset:0,background:'radial-gradient(ellipse 75% 55% at 50% 50%, rgba(109,40,217,.15) 0%, transparent 70%)',pointerEvents:'none' }} />
-        <div style={{ fontSize:64,animation:'popIn .5s cubic-bezier(.34,1.56,.64,1) both' }}>✅</div>
-        <div style={{ fontFamily:"'Sora',sans-serif",fontSize:28,fontWeight:800,color:'#86efac',animation:'popIn .5s .1s cubic-bezier(.34,1.56,.64,1) both' }}>Payment Complete</div>
-        <div style={{ fontSize:13,color:'#4c1d95',animation:'popIn .5s .2s cubic-bezier(.34,1.56,.64,1) both' }}>₹{total.toFixed(2)} · {verifiedItems.length} item{verifiedItems.length!==1?'s':''} · Returning…</div>
-      </div>
-    </>
-  )
-
-  // ─────────────────────────────────────────────────────────────────────
   return (
     <>
-      <style>{globalCSS}</style>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700;800&display=swap');
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        html { scroll-behavior: smooth; }
+        body { background: #000; }
 
-      <MascotIntro />
+        @keyframes shimmer       { 0%,100%{opacity:.4} 50%{opacity:1} }
+        @keyframes blink         { 0%,100%{opacity:1}  50%{opacity:.25} }
+        @keyframes spin          { to{transform:rotate(360deg)} }
+        @keyframes cardIn        { from{opacity:0;transform:translateY(18px) scale(.98)} to{opacity:1;transform:none} }
+        @keyframes particlePulse { 0%,100%{opacity:0;transform:scale(1)} 50%{opacity:.55;transform:scale(1.6)} }
+        @keyframes tickerScroll  { from{transform:translateX(0)} to{transform:translateX(-50%)} }
+        @keyframes heroIn        { from{opacity:0;transform:translateY(22px)} to{opacity:1;transform:none} }
+        @keyframes pulse         { 0%,100%{opacity:1;box-shadow:0 0 6px #a78bfa} 50%{opacity:.35;box-shadow:0 0 2px #7c3aed} }
+        @keyframes floatA        { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-12px)} }
+
+        .nav-btn:hover { color:#a78bfa !important; border-color:rgba(167,139,250,.38) !important; }
+        .checkout-btn:hover { transform: translateY(-3px) !important; box-shadow: 0 12px 48px rgba(124,58,237,.6) !important; }
+      `}</style>
 
       {/* Background */}
-      <div style={{ position:'fixed', inset:0, background:'#000', zIndex:0 }} />
-      <div style={{ position:'fixed', inset:0, background:'radial-gradient(ellipse 75% 55% at 50% -5%, rgba(109,40,217,.2) 0%, transparent 70%)', zIndex:0, pointerEvents:'none' }} />
-      <div style={{ position:'fixed', inset:0, background:'radial-gradient(ellipse 90% 50% at 50% 120%, rgba(76,29,149,.12) 0%, transparent 60%)', zIndex:0, pointerEvents:'none' }} />
-      <div style={{ position:'fixed', top:60, left:0, right:0, height:1, background:'linear-gradient(to right, transparent, rgba(109,40,217,.25), transparent)', zIndex:1, pointerEvents:'none' }} />
+      <div style={{ position: 'fixed', inset: 0, background: '#000', zIndex: 0 }} />
+      <div style={{ position: 'fixed', inset: 0, background: 'radial-gradient(ellipse 75% 55% at 50% -5%, rgba(109,40,217,.2) 0%, transparent 70%)', zIndex: 0, pointerEvents: 'none' }} />
+      <div style={{ position: 'fixed', inset: 0, background: 'radial-gradient(ellipse 90% 50% at 50% 120%, rgba(76,29,149,.12) 0%, transparent 60%)', zIndex: 0, pointerEvents: 'none' }} />
+      <div style={{ position: 'fixed', top: 60, left: 0, right: 0, height: 1, background: 'linear-gradient(to right, transparent, rgba(109,40,217,.25), transparent)', zIndex: 1, pointerEvents: 'none' }} />
 
       <ParticleField />
 
-      <div style={{ position:'relative', zIndex:1, minHeight:'100vh', fontFamily:"'Sora', sans-serif" }}>
+      <div style={{ position: 'relative', zIndex: 1, minHeight: '100vh', fontFamily: "'Sora', sans-serif" }}>
 
         {/* Navbar */}
         <header style={{
-          display:'flex', alignItems:'center', justifyContent:'space-between',
-          padding:'0 32px', height:60,
-          background:'rgba(0,0,0,.72)', borderBottom:'1px solid rgba(109,40,217,.2)',
-          backdropFilter:'blur(22px)', position:'sticky', top:0, zIndex:50,
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          padding: '0 32px', height: 60,
+          background: 'rgba(0,0,0,.72)', borderBottom: '1px solid rgba(109,40,217,.2)',
+          backdropFilter: 'blur(22px)', position: 'sticky', top: 0, zIndex: 50,
         }}>
-          <div style={{ display:'flex', alignItems:'center', gap:11 }}>
-            <div style={{ width:38, height:38, borderRadius:11, fontSize:19, background:'linear-gradient(135deg, #7c3aed, #4c1d95)', display:'flex', alignItems:'center', justifyContent:'center', boxShadow:'0 0 22px rgba(124,58,237,.55)' }}>🛒</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 11 }}>
+            <div style={{ width: 38, height: 38, borderRadius: 11, fontSize: 19, background: 'linear-gradient(135deg, #7c3aed, #4c1d95)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 0 22px rgba(124,58,237,.55)' }}>🛒</div>
             <div>
-              <div style={{ fontSize:17, fontWeight:800, color:'#fff', letterSpacing:'-.4px' }}>Nyatik<span style={{ color:'#a78bfa' }}>Nayan</span></div>
-              <div style={{ fontSize:9, color:'#4c1d95', letterSpacing:'2.2px', textTransform:'uppercase' }}>Retail Intelligence</div>
+              <div style={{ fontSize: 17, fontWeight: 800, color: '#fff', letterSpacing: '-.4px' }}>Nyatik<span style={{ color: '#a78bfa' }}>Nayan</span></div>
+              <div style={{ fontSize: 9, color: '#4c1d95', letterSpacing: '2.2px', textTransform: 'uppercase' }}>Retail Intelligence</div>
             </div>
           </div>
-          <div style={{ display:'flex', alignItems:'center', gap:10 }}>
-            {[{ label:'Dashboard', path:'/dashboard' }].map(n => (
-              <button key={n.path} className="nav-btn" onClick={() => navigate(n.path)} style={{
-                padding:'5px 16px', borderRadius:20, fontSize:12, fontWeight:500,
-                background:'transparent', border:'1px solid rgba(109,40,217,.3)', color:'#6d28d9', cursor:'pointer', transition:'all .2s',
-              }}>{n.label}</button>
-            ))}
-            <button onClick={logout} style={{ padding:'6px 18px', borderRadius:20, fontSize:12, fontWeight:700, background:'linear-gradient(135deg,#7c3aed,#5b21b6)', color:'#fff', border:'none', cursor:'pointer', boxShadow:'0 0 20px rgba(124,58,237,.38)' }}>Sign Out</button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <span style={{ fontFamily: 'monospace', fontSize: 11, color: '#4c1d95', letterSpacing: '.5px' }}>
+              {user?.shop_name || 'Store'}
+            </span>
+            <button onClick={logout} style={{ padding: '6px 18px', borderRadius: 20, fontSize: 12, fontWeight: 700, background: 'linear-gradient(135deg,#7c3aed,#5b21b6)', color: '#fff', border: 'none', cursor: 'pointer', boxShadow: '0 0 20px rgba(124,58,237,.38)' }}>Sign Out</button>
           </div>
         </header>
 
-
-        {/* Hero */}
-        <div style={{ textAlign:'center', padding:'48px 24px 32px', animation:'heroIn .85s ease both' }}>
+        {/* Hero Section */}
+        <div style={{ textAlign: 'center', padding: '64px 24px 40px', animation: 'heroIn .85s ease both' }}>
           <div style={{
-            display:'inline-flex', alignItems:'center', gap:7,
-            padding:'5px 16px', borderRadius:22, marginBottom:20,
-            background:'rgba(109,40,217,.14)', border:'1px solid rgba(109,40,217,.32)',
-            fontSize:10, fontWeight:700, letterSpacing:'1.8px', textTransform:'uppercase',
-            color:'#a78bfa', fontFamily:'monospace',
+            display: 'inline-flex', alignItems: 'center', gap: 7,
+            padding: '5px 16px', borderRadius: 22, marginBottom: 24,
+            background: 'rgba(109,40,217,.14)', border: '1px solid rgba(109,40,217,.32)',
+            fontSize: 10, fontWeight: 700, letterSpacing: '1.8px', textTransform: 'uppercase',
+            color: '#a78bfa', fontFamily: 'monospace',
           }}>
-            <div style={{ width:6, height:6, borderRadius:'50%', background:'#a78bfa', animation:'pulse 2s ease-in-out infinite' }} />
-            AI Product Verification · YOLOv8 + EasyOCR
+            <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#86efac', boxShadow: '0 0 8px #86efac', animation: 'pulse 2s ease-in-out infinite' }} />
+            Welcome, {user?.name || 'Retailer'}
           </div>
-          <h1 style={{ fontSize:'clamp(32px,5vw,56px)', fontWeight:800, lineHeight:1.1, letterSpacing:'-2px', color:'#fff', marginBottom:12, marginTop:20 }}>
-            Scan, Verify & <span style={{ color:'#a78bfa' }}>Checkout</span>
+
+          <h1 style={{ fontSize: 'clamp(36px,5vw,60px)', fontWeight: 800, lineHeight: 1.1, letterSpacing: '-2px', color: '#fff', marginBottom: 16, marginTop: 20 }}>
+            Smart Retail <span style={{ color: '#a78bfa' }}>Verification</span>
           </h1>
-          <p style={{ fontSize:14, color:'rgba(255,255,255,.28)', maxWidth:480, margin:'0 auto', lineHeight:1.7, fontWeight:400 }}>
-            Upload product images, enter barcodes, and let AI verify your cart before payment.
+          <p style={{ fontSize: 15, color: 'rgba(255,255,255,.3)', maxWidth: 560, margin: '0 auto 40px', lineHeight: 1.7, fontWeight: 400 }}>
+            AI-powered product verification using YOLOv8 + OCR. Scan barcodes, capture product images via webcam, and verify against your inventory database in real-time.
+          </p>
+
+          {/* Big Checkout Button */}
+          <button
+            className="checkout-btn"
+            onClick={() => navigate('/transaction')}
+            style={{
+              padding: '18px 48px',
+              borderRadius: 16,
+              border: 'none',
+              cursor: 'pointer',
+              fontFamily: "'Sora', sans-serif",
+              fontSize: 18,
+              fontWeight: 800,
+              letterSpacing: '.3px',
+              background: 'linear-gradient(135deg, #7c3aed, #5b21b6)',
+              color: '#fff',
+              boxShadow: '0 6px 36px rgba(124,58,237,.45)',
+              transition: 'transform .25s, box-shadow .3s',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 12,
+            }}
+          >
+            <span style={{ fontSize: 22 }}>🛒</span>
+            Start Checkout
+            <span style={{ fontSize: 14, opacity: .7 }}>→</span>
+          </button>
+
+          <p style={{ marginTop: 16, fontSize: 11, color: '#4c1d95', fontFamily: 'monospace', letterSpacing: '.8px' }}>
+            Barcode entry + Webcam capture + AI verification + Cart
           </p>
         </div>
 
-        {/* Stats ticker */}
+        {/* Stats Ticker */}
         <StatsTicker />
 
-
-        {/* ── Transaction Area ── */}
-        <div style={{ display:'grid', gridTemplateColumns:'1fr 380px', gap:20, padding:'0 24px 64px', maxWidth:1380, margin:'0 auto', alignItems:'start' }}>
-
-          {/* Left: Cart + Scanner */}
-          <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
-
-            <div style={{ display:'flex',alignItems:'center',gap:8,fontFamily:'monospace',fontSize:10,fontWeight:600,letterSpacing:'2px',textTransform:'uppercase',color:'#4c1d95' }}>
-              Cart <div style={{ flex:1,height:1,background:'rgba(109,40,217,.15)' }} />
-              <span style={{ padding:'2px 8px',borderRadius:6,background:'rgba(109,40,217,.08)',border:'1px solid rgba(109,40,217,.2)',color:'#a78bfa',fontSize:10 }}>{cart.length} item{cart.length!==1?'s':''}</span>
-            </div>
-
-            {/* Cart card */}
-            <div style={{ background:'rgba(8,3,18,.88)',border:'1px solid rgba(109,40,217,.22)',borderRadius:20,overflow:'hidden',position:'relative',backdropFilter:'blur(14px)',animation:'cardIn .6s cubic-bezier(.22,1,.36,1) both' }}>
-              <div style={{ position:'absolute',top:0,left:0,right:0,height:1,background:'linear-gradient(90deg,transparent,#7c3aed,transparent)',animation:'shimmer 3s ease-in-out infinite' }} />
-              <div style={{ padding:'14px 20px',borderBottom:'1px solid rgba(109,40,217,.15)',display:'flex',alignItems:'center',justifyContent:'space-between',background:'rgba(0,0,0,.3)' }}>
-                <span style={{ fontFamily:"'Sora',sans-serif",fontSize:14,fontWeight:700,color:'#e9d5ff' }}>Session Cart</span>
-                <div style={{ display:'flex',gap:16,fontFamily:'monospace',fontSize:11 }}>
-                  <span style={{ color:'#86efac' }}>✓ {verifiedItems.length} verified</span>
-                  {flaggedItems.length > 0 && <span style={{ color:'#fca5a5' }}>⚠ {flaggedItems.length} flagged</span>}
-                </div>
-              </div>
-              <div style={{ minHeight:120,maxHeight:420,overflowY:'auto' }}>
-                {cart.length === 0
-                  ? <div style={{ padding:'40px 20px',textAlign:'center',color:'#4c1d95',fontFamily:'monospace',fontSize:12 }}>
-                      <div style={{ fontSize:32,marginBottom:10,opacity:.3 }}>🛒</div>
-                      No items yet — scan a product below
-                    </div>
-                  : cart.map((item, i) => <CartRow key={item.id} item={item} index={i} onRemove={handleRemove} onQtyChange={handleQtyChange} />)
-                }
-              </div>
-              {flaggedItems.length > 0 && (
-                <div style={{ margin:'0 16px 16px',padding:'10px 14px',borderRadius:10,background:'rgba(252,165,165,.06)',border:'1px solid rgba(252,165,165,.22)',fontFamily:'monospace',fontSize:11,color:'#fca5a5',lineHeight:1.6 }}>
-                  ⚠️ {flaggedItems.length} item{flaggedItems.length!==1?'s':''} flagged for fraud. Review before payment.
-                </div>
-              )}
-            </div>
-
-
-            {/* Scan section */}
-            <div style={{ display:'flex',alignItems:'center',gap:8,fontFamily:'monospace',fontSize:10,fontWeight:600,letterSpacing:'2px',textTransform:'uppercase',color:'#4c1d95',marginTop:4 }}>
-              Next Item Scan <div style={{ flex:1,height:1,background:'rgba(109,40,217,.15)' }} />
-              {scanning && <span style={{ color:'#a78bfa',fontSize:10,animation:'blink 1s ease-in-out infinite' }}>● PROCESSING</span>}
-            </div>
-
-            {scannerOpen ? (
-              <>
-                <ScanCapture onVerified={handleVerified} scanning={scanning} setScanning={setScanning} />
-                <button onClick={() => { if (!scanning) setScannerOpen(false) }} disabled={scanning}
-                  style={{ padding:'10px 18px',borderRadius:12,cursor:scanning?'not-allowed':'pointer',fontFamily:'monospace',fontSize:11,letterSpacing:'.8px',border:'1px solid rgba(109,40,217,.25)',background:'transparent',color:'#4c1d95',alignSelf:'center',opacity:scanning?.5:1,transition:'color .2s,border-color .2s' }}>
-                  ✕ Cancel scan
-                </button>
-              </>
-            ) : (
-              <button onClick={() => setScannerOpen(true)} disabled={scanning || paid}
-                style={{
-                  padding:'18px 22px',borderRadius:14,border:'1.5px dashed rgba(124,58,237,.35)',
-                  cursor:scanning||paid?'not-allowed':'pointer',
-                  fontFamily:"'Sora',sans-serif",fontSize:14,fontWeight:700,letterSpacing:'.3px',
-                  background:'rgba(109,40,217,.05)',color:'#a78bfa',
-                  display:'flex',alignItems:'center',justifyContent:'center',gap:10,
-                  transition:'background .2s, border-color .2s, transform .15s',
-                  opacity:scanning||paid?.4:1,
-                }}>
-                <span style={{ fontSize:18 }}>＋</span>
-                {cart.length === 0 ? 'Scan First Item' : 'Add Another Item'}
-                <span style={{ fontFamily:'monospace',fontSize:10,color:'#4c1d95',letterSpacing:'1px',marginLeft:6 }}>· re-runs YOLO + OCR</span>
-              </button>
-            )}
+        {/* How It Works */}
+        <div style={{ maxWidth: 1100, margin: '0 auto', padding: '0 24px 32px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontFamily: 'monospace', fontSize: 10, fontWeight: 600, letterSpacing: '2px', textTransform: 'uppercase', color: '#4c1d95', marginBottom: 20 }}>
+            How It Works <div style={{ flex: 1, height: 1, background: 'rgba(109,40,217,.15)' }} />
           </div>
 
-
-          {/* Right: Summary */}
-          <div style={{ display:'flex',flexDirection:'column',gap:14,position:'sticky',top:80 }}>
-            {[
-              { label:'Items in Cart',   value:cart.length,          color:'#a78bfa', icon:'📦' },
-              { label:'Verified',        value:verifiedItems.length, color:'#86efac', icon:'✅' },
-              { label:'Fraud Flagged',   value:flaggedItems.length,  color:'#fca5a5', icon:'🚨' },
-            ].map((s,i) => (
-              <div key={i} style={{ background:'rgba(8,3,18,.88)',border:'1px solid rgba(109,40,217,.22)',borderRadius:14,padding:'14px 18px',display:'flex',alignItems:'center',justifyContent:'space-between',backdropFilter:'blur(14px)',animation:`cardIn .5s ${.1+i*.08}s cubic-bezier(.22,1,.36,1) both` }}>
-                <div>
-                  <div style={{ fontFamily:'monospace',fontSize:9,letterSpacing:'1.5px',textTransform:'uppercase',color:'#4c1d95',marginBottom:4 }}>{s.label}</div>
-                  <div style={{ fontFamily:"'Sora',sans-serif",fontSize:24,fontWeight:800,color:s.color,lineHeight:1 }}>{s.value}</div>
-                </div>
-                <div style={{ width:34,height:34,borderRadius:9,background:'rgba(109,40,217,.1)',border:'1px solid rgba(109,40,217,.2)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:17 }}>{s.icon}</div>
-              </div>
-            ))}
-
-            {/* Bill summary */}
-            <div style={{ background:'rgba(8,3,18,.88)',border:'1px solid rgba(109,40,217,.22)',borderRadius:16,overflow:'hidden',backdropFilter:'blur(14px)',animation:'cardIn .6s .3s cubic-bezier(.22,1,.36,1) both' }}>
-              <div style={{ padding:'12px 18px',borderBottom:'1px solid rgba(109,40,217,.15)',background:'rgba(0,0,0,.3)' }}>
-                <span style={{ fontFamily:"'Sora',sans-serif",fontSize:13,fontWeight:700,color:'#e9d5ff' }}>Bill Summary</span>
-              </div>
-              <div style={{ padding:'14px 18px' }}>
-                {[['Subtotal', `₹${subtotal.toFixed(2)}`, '#c4b5fd'],['GST (18%)', `₹${gst.toFixed(2)}`, '#c4b5fd']].map(([k,v,c]) => (
-                  <div key={k} style={{ display:'flex',justifyContent:'space-between',alignItems:'center',padding:'6px 0',borderBottom:'1px solid rgba(109,40,217,.08)',fontFamily:'monospace',fontSize:12 }}>
-                    <span style={{ color:'#4c1d95' }}>{k}</span>
-                    <span style={{ color:c }}>{v}</span>
-                  </div>
-                ))}
-                <div style={{ display:'flex',justifyContent:'space-between',alignItems:'center',padding:'14px 0 4px',fontFamily:'monospace' }}>
-                  <span style={{ fontSize:11,color:'#a78bfa',letterSpacing:'1px',textTransform:'uppercase' }}>Total</span>
-                  <span style={{ fontFamily:"'Sora',sans-serif",fontSize:22,fontWeight:800,color:'#86efac' }}>₹{total.toFixed(2)}</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Pay button */}
-            <button onClick={handlePay} disabled={cart.length === 0 || scanning}
-              style={{
-                padding:'16px 20px',border:'none',borderRadius:14,cursor:cart.length===0||scanning?'not-allowed':'pointer',
-                fontFamily:"'Sora',sans-serif",fontSize:16,fontWeight:800,letterSpacing:'.2px',
-                background:cart.length===0||scanning?'rgba(134,239,172,.08)':'linear-gradient(135deg,#7c3aed,#5b21b6)',
-                color:cart.length===0||scanning?'#4c1d95':'#fff',
-                opacity:cart.length===0||scanning?.4:1,
-                transition:'opacity .2s,transform .2s,box-shadow .2s',
-                boxShadow:cart.length>0&&!scanning?'0 4px 32px rgba(124,58,237,.4)':'none',
-                display:'flex',alignItems:'center',justifyContent:'center',gap:10,
-              }}>
-              {scanning
-                ? <><span style={{ width:16,height:16,border:'2px solid rgba(255,255,255,.25)',borderTopColor:'#fff',borderRadius:'50%',animation:'spin .7s linear infinite',display:'inline-block' }} />Processing…</>
-                : '✅ Done & Pay'}
-            </button>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 16 }}>
+            <FeatureCard
+              icon="📷"
+              title="1. Capture Product Image"
+              description="Use your webcam or upload a photo of the product. Our YOLOv8 model identifies the product visually."
+              delay="0s"
+            />
+            <FeatureCard
+              icon="⌨️"
+              title="2. Enter Barcode"
+              description="Type the barcode number from the product. This is cross-referenced against your inventory database."
+              delay=".1s"
+            />
+            <FeatureCard
+              icon="🤖"
+              title="3. AI Verification"
+              description="YOLO + OCR engine compares the product image against the barcode's inventory entry. Mismatches are flagged as potential fraud."
+              delay=".2s"
+            />
+            <FeatureCard
+              icon="🛒"
+              title="4. Add to Cart"
+              description="Verified items are added to your cart. You can scan more items — each triggers a fresh AI verification pass."
+              delay=".3s"
+            />
           </div>
         </div>
-      </div>
 
+        {/* Prototype Details */}
+        <div style={{ maxWidth: 1100, margin: '0 auto', padding: '32px 24px 64px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontFamily: 'monospace', fontSize: 10, fontWeight: 600, letterSpacing: '2px', textTransform: 'uppercase', color: '#4c1d95', marginBottom: 20 }}>
+            Prototype Details <div style={{ flex: 1, height: 1, background: 'rgba(109,40,217,.15)' }} />
+          </div>
 
-      {/* Toast */}
-      <div style={{
-        position:'fixed', bottom:28, right:28, zIndex:999,
-        padding:'12px 20px', borderRadius:12, fontSize:13, fontWeight:500,
-        display:'flex', alignItems:'center', gap:8, pointerEvents:'none',
-        transform: toast.show ? 'translateY(0)' : 'translateY(84px)',
-        opacity: toast.show ? 1 : 0, transition:'transform .42s ease, opacity .42s ease',
-        maxWidth:320, fontFamily:"'Sora', sans-serif",
-        background: toast.type==='success'?'rgba(22,163,74,.14)':toast.type==='error'?'rgba(220,38,38,.14)':toast.type==='warn'?'rgba(217,119,6,.14)':'rgba(109,40,217,.14)',
-        border:`1px solid ${toast.type==='success'?'rgba(134,239,172,.38)':toast.type==='error'?'rgba(252,165,165,.38)':toast.type==='warn'?'rgba(252,211,77,.38)':'rgba(167,139,250,.38)'}`,
-        color: toast.type==='success'?'#86efac':toast.type==='error'?'#fca5a5':toast.type==='warn'?'#fcd34d':'#a78bfa',
-        backdropFilter:'blur(14px)',
-      }}>
-        {toast.msg}
+          <div style={{
+            background: 'rgba(8,3,18,.88)',
+            border: '1px solid rgba(109,40,217,.22)',
+            borderRadius: 18,
+            padding: '28px 28px',
+            backdropFilter: 'blur(14px)',
+            animation: 'cardIn .6s .4s cubic-bezier(.22,1,.36,1) both',
+          }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '20px 32px' }}>
+              {[
+                { label: 'AI Model', value: 'YOLOv8 (Custom Trained)', color: '#a78bfa' },
+                { label: 'OCR Engine', value: 'Tesseract.js + EasyOCR', color: '#86efac' },
+                { label: 'Backend', value: 'Node.js + FastAPI', color: '#c4b5fd' },
+                { label: 'Database', value: 'PostgreSQL + Redis', color: '#a78bfa' },
+                { label: 'Fraud Detection', value: 'Fuzzy Match + Frequency Analysis', color: '#fcd34d' },
+                { label: 'Notifications', value: 'SendGrid + Nodemailer', color: '#86efac' },
+                { label: 'Auth', value: 'Redis Sessions + bcrypt', color: '#c4b5fd' },
+                { label: 'Real-time', value: 'WebSocket (ws)', color: '#a78bfa' },
+              ].map((item, i) => (
+                <div key={i} style={{ padding: '12px 0', borderBottom: '1px solid rgba(109,40,217,.1)' }}>
+                  <div style={{ fontFamily: 'monospace', fontSize: 9, letterSpacing: '1.5px', textTransform: 'uppercase', color: '#4c1d95', marginBottom: 4 }}>{item.label}</div>
+                  <div style={{ fontFamily: "'Sora', sans-serif", fontSize: 14, fontWeight: 600, color: item.color }}>{item.value}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Second CTA */}
+          <div style={{ textAlign: 'center', marginTop: 40 }}>
+            <button
+              className="checkout-btn"
+              onClick={() => navigate('/transaction')}
+              style={{
+                padding: '14px 36px',
+                borderRadius: 14,
+                border: 'none',
+                cursor: 'pointer',
+                fontFamily: "'Sora', sans-serif",
+                fontSize: 15,
+                fontWeight: 700,
+                background: 'linear-gradient(135deg, #7c3aed, #5b21b6)',
+                color: '#fff',
+                boxShadow: '0 4px 28px rgba(124,58,237,.4)',
+                transition: 'transform .25s, box-shadow .3s',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 10,
+              }}
+            >
+              Go to Checkout →
+            </button>
+
+            <div style={{ marginTop: 14, display: 'flex', justifyContent: 'center', gap: 16 }}>
+              <button
+                onClick={() => navigate('/checkout')}
+                style={{
+                  padding: '8px 20px', borderRadius: 10,
+                  border: '1px solid rgba(109,40,217,.3)',
+                  background: 'transparent', color: '#6d28d9',
+                  fontFamily: "'Sora', sans-serif", fontSize: 12, fontWeight: 600,
+                  cursor: 'pointer', transition: 'all .2s',
+                }}
+              >
+                📡 HID Scanner Terminal
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div style={{
+          borderTop: '1px solid rgba(109,40,217,.15)',
+          padding: '20px 32px',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+        }}>
+          <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#86efac', boxShadow: '0 0 8px #86efac', animation: 'blink 2.5s ease-in-out infinite' }} />
+          <span style={{ fontSize: 10, color: '#4c1d95', fontFamily: 'monospace', letterSpacing: '1px' }}>
+            NyatikNayan · Team Schrodinger · Smart Retail Intelligence Platform
+          </span>
+        </div>
       </div>
     </>
   )
 }
-
-
-/* ─── Global CSS ─────────────────────────────────────────────────────── */
-const globalCSS = `
-  @import url('https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700;800&display=swap');
-  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-  html { scroll-behavior: smooth; }
-  body { background: #000; }
-
-  @keyframes shimmer       { 0%,100%{opacity:.4} 50%{opacity:1} }
-  @keyframes blink         { 0%,100%{opacity:1}  50%{opacity:.25} }
-  @keyframes spin          { to{transform:rotate(360deg)} }
-  @keyframes scanLine      { 0%{top:5%;opacity:0} 8%{opacity:1} 92%{opacity:1} 100%{top:95%;opacity:0} }
-  @keyframes bounce        { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-6px)} }
-  @keyframes cardIn        { from{opacity:0;transform:translateY(18px) scale(.98)} to{opacity:1;transform:none} }
-  @keyframes rowIn         { from{opacity:0;transform:translateX(-8px)} to{opacity:1;transform:none} }
-  @keyframes popIn         { from{opacity:0;transform:scale(.7)} to{opacity:1;transform:scale(1)} }
-  @keyframes particlePulse { 0%,100%{opacity:0;transform:scale(1)} 50%{opacity:.55;transform:scale(1.6)} }
-  @keyframes tickerScroll  { from{transform:translateX(0)} to{transform:translateX(-50%)} }
-  @keyframes heroIn        { from{opacity:0;transform:translateY(22px)} to{opacity:1;transform:none} }
-  @keyframes pulse         { 0%,100%{opacity:1;box-shadow:0 0 6px #a78bfa} 50%{opacity:.35;box-shadow:0 0 2px #7c3aed} }
-  @keyframes mascotBob     { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-10px)} }
-  @keyframes lensZoom      { 0%,100%{transform:scale(1)} 40%{transform:scale(1.06)} 70%{transform:scale(0.97)} }
-  @keyframes lensRing      { 0%{transform:scale(0.7);opacity:0.9} 100%{transform:scale(1.7);opacity:0} }
-  @keyframes bubblePop     { 0%{transform:scale(0) translateY(6px);opacity:0} 70%{transform:scale(1.08) translateY(-2px);opacity:1} 100%{transform:scale(1) translateY(0);opacity:1} }
-
-  @keyframes barcodeScan { 0%{top:0;opacity:0} 10%{opacity:1} 50%{top:calc(100% - 2px);opacity:1} 60%{opacity:0} 100%{top:0;opacity:0} }
-  @keyframes cellPop     { 0%{transform:scale(.6);opacity:0} 60%{transform:scale(1.12)} 100%{transform:scale(1);opacity:1} }
-  @keyframes caretBlink  { 0%,49%{border-color:rgba(167,139,250,.55);box-shadow:0 0 10px rgba(167,139,250,.4)} 50%,100%{border-color:rgba(167,139,250,.15);box-shadow:none} }
-  @property --ang { syntax: '<angle>'; inherits: false; initial-value: 0deg; }
-  @keyframes rotateGrad { to { --ang: 360deg } }
-
-  .nav-btn:hover { color:#a78bfa !important; border-color:rgba(167,139,250,.38) !important; }
-`

@@ -253,7 +253,7 @@ export default function LoginPage({ setUser }) {
       const data = await res.json()
       if (res.ok) {
         setUser(data.user)
-        navigate('/transaction')
+        navigate('/home')
         showToast('Welcome back!', 'success')
       } else {
         showToast(data.message || 'Invalid credentials.', 'error')

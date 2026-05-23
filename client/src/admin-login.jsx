@@ -143,7 +143,14 @@ export default function AdminLoginPage({ setUser }) {
             </form>
 
             {/* Customer link */}
-            {/* No customer login link needed — this is a no-person checkout */}
+            {/* Registration link for new admins */}
+            <div style={{ marginTop:20, textAlign:'center' }}>
+              <p style={{ fontSize:12, color:'rgba(255,255,255,.2)' }}>
+                New admin?{' '}
+                <a href="/signup" onClick={e => { e.preventDefault(); navigate('/signup') }}
+                  style={{ color:'#a78bfa', fontWeight:600, textDecoration:'none' }}>Register account →</a>
+              </p>
+            </div>
           </div>
 
           {/* Footer */}

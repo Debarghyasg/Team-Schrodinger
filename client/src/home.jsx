@@ -176,17 +176,17 @@ export default function HomePage({ user, setUser }) {
             AI-powered product verification using YOLOv8 + OCR. Scan barcodes, capture product images via webcam, and verify against your inventory database in real-time.
           </p>
 
-          {/* Big Checkout Button */}
+          {/* Big Start Transaction Button */}
           <button
             className="checkout-btn"
             onClick={() => navigate('/transaction')}
             style={{
-              padding: '18px 48px',
+              padding: '20px 56px',
               borderRadius: 16,
               border: 'none',
               cursor: 'pointer',
               fontFamily: "'Sora', sans-serif",
-              fontSize: 18,
+              fontSize: 20,
               fontWeight: 800,
               letterSpacing: '.3px',
               background: 'linear-gradient(135deg, #7c3aed, #5b21b6)',
@@ -198,13 +198,13 @@ export default function HomePage({ user, setUser }) {
               gap: 12,
             }}
           >
-            <span style={{ fontSize: 22 }}>🛒</span>
-            Start Checkout
+            <span style={{ fontSize: 24 }}>🛒</span>
+            Start Transaction
             <span style={{ fontSize: 14, opacity: .7 }}>→</span>
           </button>
 
           <p style={{ marginTop: 16, fontSize: 11, color: '#4c1d95', fontFamily: 'monospace', letterSpacing: '.8px' }}>
-            Barcode entry + Webcam capture + AI verification + Cart
+            Next customer → Barcode + Webcam + AI verification + Cart + Pay → End Session
           </p>
         </div>
 
@@ -300,23 +300,8 @@ export default function HomePage({ user, setUser }) {
                 gap: 10,
               }}
             >
-              Go to Checkout →
+              Start Next Transaction →
             </button>
-
-            <div style={{ marginTop: 14, display: 'flex', justifyContent: 'center', gap: 16 }}>
-              <button
-                onClick={() => navigate('/checkout')}
-                style={{
-                  padding: '8px 20px', borderRadius: 10,
-                  border: '1px solid rgba(109,40,217,.3)',
-                  background: 'transparent', color: '#6d28d9',
-                  fontFamily: "'Sora', sans-serif", fontSize: 12, fontWeight: 600,
-                  cursor: 'pointer', transition: 'all .2s',
-                }}
-              >
-                📡 HID Scanner Terminal
-              </button>
-            </div>
           </div>
         </div>
 

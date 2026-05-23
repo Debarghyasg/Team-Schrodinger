@@ -437,47 +437,7 @@ export default function TransactionPage({ user, setUser }) {
     }
   }, [])
 
-  // ── Session-status polling: customer gets kicked when admin expires session ──
-  useEffect(() => {
-    if (!user || user.role !== 'customer') return
-    let active = true
-    const poll = async () => {
-      try {
-        const res = await fetch('/api/customer/session-status', { credentials: 'include' })
-        const data = await res.json()
-        if (!data.active || data.expired) {
-          if (active) {
-            setUser(null)
-            navigate('/session-expired', { replace: true })
-          }
-        }
-      } catch {}
-    }
-    const interval = setInterval(poll, 5000) // poll every 5 seconds
-    // Also listen for WebSocket SESSION_EXPIRED
-    const proto = location.protocol === 'https:' ? 'wss' : 'ws'
-    let ws
-    try {
-      ws = new WebSocket(`${proto}://${window.location.host}/ws`)
-      ws.onopen = () => { if (user?.id) ws.send(JSON.stringify({ shopId: user.id })) }
-      ws.onmessage = (e) => {
-        try {
-          const msg = JSON.parse(e.data)
-          if (msg.type === 'SESSION_EXPIRED') {
-            if (active) {
-              setUser(null)
-              navigate('/session-expired', { replace: true })
-            }
-          }
-        } catch {}
-      }
-    } catch {}
-    return () => {
-      active = false
-      clearInterval(interval)
-      try { ws?.close() } catch {}
-    }
-  }, [user])
+  // No session polling needed — admin stays logged in, controls flow via UI
 
   function showToast(msg, type = 'info') {
     setToast({ msg, type, show: true })
@@ -583,7 +543,6 @@ export default function TransactionPage({ user, setUser }) {
       }
       setScanning(false)
       setPaid(true)
-      setTimeout(() => navigate('/home'), 3200)
     } catch (err) {
       showToast(`Payment error: ${err.message}`, 'error')
       setScanning(false)
@@ -597,15 +556,34 @@ export default function TransactionPage({ user, setUser }) {
   }
   }
 
-  /* ── Paid screen ── */
+  /* ── Paid screen — show End Session button ── */
   if (paid) return (
     <>
       <style>{globalCSS}</style>
-      <div style={{ minHeight:'100vh',background:'#000',display:'flex',alignItems:'center',justifyContent:'center',flexDirection:'column',gap:16 }}>
+      <div style={{ minHeight:'100vh',background:'#000',display:'flex',alignItems:'center',justifyContent:'center',flexDirection:'column',gap:20 }}>
         <div style={{ position:'fixed',inset:0,background:'radial-gradient(ellipse 75% 55% at 50% 50%, rgba(109,40,217,.15) 0%, transparent 70%)',pointerEvents:'none' }} />
         <div style={{ fontSize:64,animation:'popIn .5s cubic-bezier(.34,1.56,.64,1) both' }}>✅</div>
         <div style={{ fontFamily:"'Sora',sans-serif",fontSize:28,fontWeight:800,color:'#86efac',animation:'popIn .5s .1s cubic-bezier(.34,1.56,.64,1) both' }}>Payment Complete</div>
-        <div style={{ fontSize:13,color:'#4c1d95',animation:'popIn .5s .2s cubic-bezier(.34,1.56,.64,1) both' }}>₹{total.toFixed(2)} · {verifiedItems.length} item{verifiedItems.length!==1?'s':''} · Redirecting…</div>
+        <div style={{ fontSize:13,color:'#4c1d95',animation:'popIn .5s .2s cubic-bezier(.34,1.56,.64,1) both' }}>₹{total.toFixed(2)} · {verifiedItems.length} item{verifiedItems.length!==1?'s':''}</div>
+        <button
+          onClick={() => navigate('/home')}
+          style={{
+            marginTop:20, padding:'16px 44px', borderRadius:14, border:'none', cursor:'pointer',
+            fontFamily:"'Sora',sans-serif", fontSize:16, fontWeight:800, letterSpacing:'.3px',
+            background:'linear-gradient(135deg, #7c3aed, #5b21b6)', color:'#fff',
+            boxShadow:'0 6px 36px rgba(124,58,237,.45)',
+            transition:'transform .25s, box-shadow .3s',
+            display:'inline-flex', alignItems:'center', gap:10,
+            animation:'popIn .5s .35s cubic-bezier(.34,1.56,.64,1) both',
+          }}
+          onMouseOver={e => { e.currentTarget.style.transform='translateY(-2px)'; e.currentTarget.style.boxShadow='0 10px 44px rgba(124,58,237,.6)' }}
+          onMouseOut={e => { e.currentTarget.style.transform='none'; e.currentTarget.style.boxShadow='0 6px 36px rgba(124,58,237,.45)' }}
+        >
+          ✕ End Session — Next Customer
+        </button>
+        <p style={{ fontSize:11, color:'#4c1d95', fontFamily:'monospace', letterSpacing:'.8px', animation:'popIn .5s .45s cubic-bezier(.34,1.56,.64,1) both' }}>
+          Returns to home screen for the next customer
+        </p>
       </div>
     </>
   )

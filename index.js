@@ -409,8 +409,9 @@ app.post('/api/admin/expire-customer-session', isAdmin, async (req, res) => {
         if (result.rowCount === 0)
             return res.status(404).json({ message: 'No active session found with this token.' });
 
-        // Remove from Redis
+        // Remove from Redis — session cache + UID uniqueness set
         await redisClient.del(`customer:session:${token}`).catch(() => {});
+        await redisClient.del(`session:uids:${token}`).catch(() => {});
 
         // Broadcast SESSION_EXPIRED via WebSocket for instant customer logout
         broadcastToShop(admin.shop_id, {
@@ -447,6 +448,33 @@ app.get('/api/admin/active-sessions', isAdmin, async (req, res) => {
     } catch (err) {
         console.error('Active sessions query error:', err.message);
         return res.status(500).json({ sessions: [] });
+    }
+});
+
+// POST /api/admin/reset-session-uids — Admin override: clear UID set for a session
+// Use case: customer mistakenly scanned wrong item, admin resets so they can re-scan
+app.post('/api/admin/reset-session-uids', isAdmin, async (req, res) => {
+    const { token, barcode, mk_id } = req.body;
+    if (!token)
+        return res.status(400).json({ message: 'Session token is required.' });
+
+    const uidKey = `session:uids:${token}`;
+    try {
+        if (barcode) {
+            // Remove only one specific UID from the set
+            const uidValue = mk_id ? `${barcode.trim()}:${mk_id.trim()}` : barcode.trim();
+            await redisClient.sRem(uidKey, uidValue);
+            console.log(`🔄 Admin reset UID: ${uidValue} from session ${token.slice(0, 8)}…`);
+            return res.json({ message: `UID ${uidValue} removed from session.` });
+        } else {
+            // Clear entire UID set for the session
+            await redisClient.del(uidKey);
+            console.log(`🔄 Admin reset ALL UIDs for session ${token.slice(0, 8)}…`);
+            return res.json({ message: 'All UIDs cleared for this session.' });
+        }
+    } catch (err) {
+        console.error('Reset UIDs error:', err.message);
+        return res.status(500).json({ message: 'Failed to reset UIDs.' });
     }
 });
 
@@ -569,12 +597,43 @@ app.post('/api/admin/register', async (req, res) => {
 // ── CHECKOUT ──────────────────────────────────────────────────────────────────
 
 app.post('/api/checkout/verify', isAuth, async (req, res) => {
-    const { barcode } = req.body;
+    const { barcode, mk_id } = req.body;
     if (!barcode || typeof barcode !== 'string' || barcode.trim().length < 4)
         return res.status(400).json({ message: 'Invalid barcode.' });
 
     const shop    = req.session.user;
     const lockKey = `txn:lock:${shop.id}:${barcode.trim()}`;
+
+    // ── UID Uniqueness Per Customer Session ──────────────────────────────────
+    // Composite key: barcode + mk_id (manufacturer serial). If mk_id is not
+    // provided, only the barcode is used — meaning the same barcode can't be
+    // scanned twice in the same session unless a different mk_id is provided.
+    const sessionToken = shop.session_token || shop.admin_id || shop.id;
+    const uidKey       = `session:uids:${sessionToken}`;
+    const uidValue     = mk_id ? `${barcode.trim()}:${mk_id.trim()}` : barcode.trim();
+
+    try {
+        // SADD returns 0 if the member already existed in the set
+        const added = await redisClient.sAdd(uidKey, uidValue);
+        // Set expiry on the UID set (4 hours — matches customer session max)
+        await redisClient.expire(uidKey, 4 * 60 * 60);
+
+        if (added === 0) {
+            console.warn(`🚫 Duplicate UID rejected: ${uidValue} in session ${sessionToken}`);
+            return res.status(409).json({
+                status:  'duplicate_uid',
+                message: mk_id
+                    ? `This product (barcode: ${barcode}, MK ID: ${mk_id}) was already scanned in this session.`
+                    : `Barcode ${barcode} already scanned in this session. If this is a different unit, provide its MK ID (serial number).`,
+                barcode: barcode.trim(),
+                mk_id:   mk_id || null,
+            });
+        }
+    } catch (redisErr) {
+        console.warn('UID uniqueness check error (fail-open):', redisErr.message);
+        // Fail-open: allow the scan if Redis is down
+    }
+    // ─────────────────────────────────────────────────────────────────────────
 
     let locked;
     try {

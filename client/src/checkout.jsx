@@ -132,6 +132,12 @@ export default function CheckoutPage({ user, setUser }) {
         showToast('Duplicate scan blocked by Redis gate', 'warn')
         setVerdict(null); return
       }
+      if (res.status === 409) {
+        const dupData = await res.json().catch(()=>({}))
+        showToast(dupData.message || 'This product was already scanned in this session', 'warn')
+        setVerdict({ status:'duplicate_uid', barcode, message: dupData.message || 'Duplicate UID — already scanned in this session' })
+        return
+      }
       if (!res.ok) {
         const err = await res.json().catch(()=>({}))
         throw new Error(err.message || `Server error ${res.status}`)

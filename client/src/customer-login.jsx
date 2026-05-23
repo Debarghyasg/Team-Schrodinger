@@ -12,6 +12,13 @@ export default function CustomerLoginPage({ setUser }) {
     link.rel = 'stylesheet'
     link.href = 'https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700;800&display=swap'
     if (!document.querySelector(`link[href="${link.href}"]`)) document.head.appendChild(link)
+
+    // Auto-fill token from URL query param (e.g. /customer?token=abc123)
+    const params = new URLSearchParams(window.location.search)
+    const urlToken = params.get('token')
+    if (urlToken && urlToken.length >= 10) {
+      setToken(urlToken)
+    }
   }, [])
 
   function showToast(msg, type = 'success') {

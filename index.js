@@ -274,7 +274,8 @@ app.post('/api/admin/login', async (req, res) => {
         // Admin session: 16 hours (full day shift)
         req.session.cookie.maxAge = 16 * 60 * 60 * 1000;
         req.session.user = {
-            id: admin.id,
+            id: admin.shop_id,          // use shop_id so checkout APIs work (they query by shop.id)
+            admin_id: admin.id,
             name: admin.owner_name,
             shop_name: admin.shop_name,
             email: admin.email,
@@ -308,7 +309,7 @@ app.post('/api/admin/logout', isAdmin, async (req, res) => {
         return res.status(400).json({ message: 'Unique code required to logout.' });
 
     try {
-        const adminId = req.session.user.id;
+        const adminId = req.session.user.admin_id;
         const result = await db.query(
             'SELECT unique_code FROM admins WHERE id = $1',
             [adminId]
@@ -357,7 +358,7 @@ app.post('/api/admin/create-customer-session', isAdmin, async (req, res) => {
             `INSERT INTO customer_sessions (shop_id, admin_id, session_token, customer_name, status, created_at)
              VALUES ($1, $2, $3, $4, 'active', NOW())
              RETURNING id, session_token, customer_name, status, created_at`,
-            [admin.shop_id, admin.id, token, (customer_name || 'Customer').trim()]
+            [admin.shop_id, admin.admin_id, token, (customer_name || 'Customer').trim()]
         );
 
         const session = result.rows[0];
@@ -366,7 +367,7 @@ app.post('/api/admin/create-customer-session', isAdmin, async (req, res) => {
         await redisClient.set(`customer:session:${token}`, JSON.stringify({
             id: session.id,
             shop_id: admin.shop_id,
-            admin_id: admin.id,
+            admin_id: admin.admin_id,
             status: 'active',
             created_at: session.created_at,
         })).catch(() => {});
@@ -402,7 +403,7 @@ app.post('/api/admin/expire-customer-session', isAdmin, async (req, res) => {
              SET status = 'paid', expired_at = NOW(), payment_total = $1
              WHERE session_token = $2 AND admin_id = $3 AND status = 'active'
              RETURNING id, customer_name`,
-            [payment_total || 0, token, admin.id]
+            [payment_total || 0, token, admin.admin_id]
         );
 
         if (result.rowCount === 0)
@@ -440,7 +441,7 @@ app.get('/api/admin/active-sessions', isAdmin, async (req, res) => {
              WHERE admin_id = $1
              ORDER BY created_at DESC
              LIMIT 50`,
-            [admin.id]
+            [admin.admin_id]
         );
         return res.json({ sessions: result.rows });
     } catch (err) {

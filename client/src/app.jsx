@@ -1,13 +1,11 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { useState, useEffect } from 'react'
 import AdminLoginPage    from './admin-login.jsx'
-import CustomerLoginPage from './customer-login.jsx'
 import SignupPage        from './signup.jsx'
 import HomePage          from './home.jsx'
 import AdminDashboard    from './admin-dashboard.jsx'
 import CheckoutPage      from './checkout.jsx'
 import TransactionPage   from './transaction.jsx'
-import SessionExpiredPage from './session-expired.jsx'
 
 function LoadingScreen() {
   return (
@@ -48,23 +46,7 @@ function LoadingScreen() {
   )
 }
 
-// Admin-only guard: requires role === 'admin'
-function AdminGuard({ user, children }) {
-  if (user === undefined) return <LoadingScreen />
-  if (!user) return <Navigate to="/" replace />
-  if (user.role !== 'admin') return <Navigate to="/transaction" replace />
-  return children
-}
-
-// Customer-only guard: requires role === 'customer'
-function CustomerGuard({ user, children }) {
-  if (user === undefined) return <LoadingScreen />
-  if (!user) return <Navigate to="/customer-login" replace />
-  if (user.role !== 'customer') return <Navigate to="/admin" replace />
-  return children
-}
-
-// Any authenticated user (admin or customer or legacy retailer)
+// Auth guard: admin must be logged in
 function AuthGuard({ user, children }) {
   if (user === undefined) return <LoadingScreen />
   if (!user) return <Navigate to="/" replace />
@@ -88,19 +70,15 @@ export default function App() {
   return (
     <BrowserRouter>
       <Routes>
-        {/* ── Public routes ── */}
-        <Route path="/"               element={<AdminLoginPage setUser={setUser} />} />
-        <Route path="/customer-login" element={<CustomerLoginPage setUser={setUser} />} />
-        <Route path="/signup"         element={<SignupPage />} />
-        <Route path="/session-expired" element={<SessionExpiredPage />} />
+        {/* ── Public: Admin login ── */}
+        <Route path="/"       element={<AdminLoginPage setUser={setUser} />} />
+        <Route path="/signup" element={<SignupPage />} />
 
-        {/* ── Admin-only routes ── */}
-        <Route path="/admin"     element={<AdminGuard user={user}><AdminDashboard user={user} setUser={setUser} /></AdminGuard>} />
-        <Route path="/home"      element={<AdminGuard user={user}><HomePage       user={user} setUser={setUser} /></AdminGuard>} />
-        <Route path="/checkout"  element={<AdminGuard user={user}><CheckoutPage   user={user} setUser={setUser} /></AdminGuard>} />
-
-        {/* ── Customer routes (active session required) ── */}
-        <Route path="/transaction" element={<CustomerGuard user={user}><TransactionPage user={user} setUser={setUser} /></CustomerGuard>} />
+        {/* ── Protected: Admin logged in → all pages accessible ── */}
+        <Route path="/home"        element={<AuthGuard user={user}><HomePage        user={user} setUser={setUser} /></AuthGuard>} />
+        <Route path="/admin"       element={<AuthGuard user={user}><AdminDashboard  user={user} setUser={setUser} /></AuthGuard>} />
+        <Route path="/checkout"    element={<AuthGuard user={user}><CheckoutPage    user={user} setUser={setUser} /></AuthGuard>} />
+        <Route path="/transaction" element={<AuthGuard user={user}><TransactionPage user={user} setUser={setUser} /></AuthGuard>} />
 
         {/* ── Catch-all ── */}
         <Route path="*" element={<Navigate to="/" replace />} />

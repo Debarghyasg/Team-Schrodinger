@@ -70,6 +70,7 @@ async def shutdown():
 class VerifyRequest(BaseModel):
     barcode:  str
     shop_id:  int
+    mk_id:    Optional[str] = None   # Manufacturer serial number (MK ID)
 
 class MatchRequest(BaseModel):
     barcode_value: str
@@ -206,14 +207,45 @@ async def verify_barcode(req: VerifyRequest):
 
     await _log_audit(req.shop_id, req.barcode, product["product_name"], status, fraud_risk)
 
-    return {
+    # MK ID validation (if provided) — checks against mock DB
+    mk_id_valid = None
+    mk_id_message = None
+    if req.mk_id:
+        from ai_core import validate_mk_id, MOCK_DB
+        mk_id_valid = validate_mk_id(req.barcode, req.mk_id)
+        if not mk_id_valid:
+            mk_id_message = f"MK ID '{req.mk_id}' does not match barcode {req.barcode} — possible counterfeit unit."
+            fraud_risk = min(1.0, fraud_risk + 0.35)
+            status = "blocked"
+
+    response = {
         "status":         status,
         "product_name":   product["product_name"],
         "price":          float(product["price"]) if product["price"] else None,
         "quantity":       product["quantity"],
         "barcode_format": product["barcode_format"] or "EAN-13",
         "fraud_risk":     fraud_risk,
-        "message":        f"Product: {product['product_name']}",
+        "message":        mk_id_message or f"Product: {product['product_name']}",
+    }
+    if req.mk_id:
+        response["mk_id"] = req.mk_id
+        response["mk_id_valid"] = mk_id_valid
+    return response
+
+
+# ── GET /mk-ids — List valid MK IDs for a barcode (demo helper) ────────────────
+@app.get("/mk-ids")
+async def get_mk_ids(barcode: str):
+    """Return the list of valid manufacturer serial numbers for a given barcode."""
+    from ai_core import MOCK_DB
+    product = MOCK_DB.get(barcode)
+    if not product:
+        return {"found": False, "barcode": barcode, "mk_ids": []}
+    return {
+        "found": True,
+        "barcode": barcode,
+        "product_name": product["product_name"],
+        "mk_ids": product.get("mk_ids", []),
     }
 
 

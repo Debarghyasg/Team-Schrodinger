@@ -229,6 +229,13 @@ export default function AdminDashboard({ user, setUser }) {
                         }}>
                           {copiedToken === s.session_token ? '✓ Copied' : '📋 Copy Token'}
                         </button>
+                        <button onClick={() => { const url = `${window.location.origin}/customer?token=${s.session_token}`; navigator.clipboard.writeText(url).then(() => { setCopiedToken('link:'+s.session_token); setTimeout(() => setCopiedToken(null), 2000) }).catch(() => {}) }} style={{
+                          padding:'6px 12px', borderRadius:8, fontSize:10, fontWeight:600,
+                          border:'1px solid rgba(124,58,237,.3)', background:'rgba(124,58,237,.06)',
+                          color:'#a78bfa', cursor:'pointer', fontFamily:'monospace',
+                        }}>
+                          {copiedToken === 'link:'+s.session_token ? '✓ Link Copied' : '🔗 Customer Link'}
+                        </button>
                         <button onClick={() => expireSession(s.session_token)} style={{
                           padding:'6px 12px', borderRadius:8, fontSize:10, fontWeight:600,
                           border:'1px solid rgba(220,38,38,.3)', background:'rgba(220,38,38,.06)',

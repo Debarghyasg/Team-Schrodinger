@@ -200,7 +200,7 @@ app.post('/api/login', async (req, res) => {
 
         req.session.user = { id: user.id, name: user.owner_name, shop_name: user.shop_name, email: user.email };
         console.log(`✅ Login: ${user.email}`);
-        return res.status(200).json({ message: 'Login successful.', redirect: '/home' });
+        return res.status(200).json({ message: 'Login successful.', user: req.session.user, redirect: '/home' });
 
     } catch (err) {
         console.error('❌ Login error:', err.message);

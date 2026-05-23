@@ -754,16 +754,52 @@ app.post('/api/checkout/verify', isAuth, async (req, res) => {
 });
 
 app.post('/api/checkout/match-verify', isAuth, async (req, res) => {
-    const { barcode, product_ocr, barcode_ocr, yolo_label } = req.body;
+    const { barcode, product_ocr, barcode_ocr, yolo_label, mk_id } = req.body;
+
+    if (!barcode || typeof barcode !== 'string' || barcode.trim().length < 4)
+        return res.status(400).json({ found: false, match: false, message: 'Invalid barcode.' });
+
+    // ── UID Uniqueness Per Customer Session ──────────────────────────────────
+    // Same logic as /api/checkout/verify: prevent same product (barcode + mk_id)
+    // from being added twice in the same customer session.
+    const shop         = req.session.user;
+    const sessionToken = shop.session_token || shop.admin_id || shop.id;
+    const uidKey       = `session:uids:${sessionToken}`;
+    const uidValue     = mk_id ? `${barcode.trim()}:${mk_id.trim()}` : barcode.trim();
+
+    try {
+        const added = await redisClient.sAdd(uidKey, uidValue);
+        await redisClient.expire(uidKey, 4 * 60 * 60);
+
+        if (added === 0) {
+            console.warn(`🚫 Duplicate UID rejected (match-verify): ${uidValue} in session ${sessionToken}`);
+            return res.status(409).json({
+                found:   true,
+                match:   false,
+                status:  'duplicate_uid',
+                message: mk_id
+                    ? `This product (barcode: ${barcode}, MK ID: ${mk_id}) was already scanned in this session.`
+                    : `Barcode ${barcode} already scanned in this session. If this is a different unit, provide its MK ID (serial number).`,
+                barcode: barcode.trim(),
+                mk_id:   mk_id || null,
+            });
+        }
+    } catch (redisErr) {
+        console.warn('UID uniqueness check error in match-verify (fail-open):', redisErr.message);
+    }
+    // ─────────────────────────────────────────────────────────────────────────
+
     try {
         const faResp = await axios.post(`${FASTAPI_URL}/match`, {
-            barcode_value: barcode,
+            barcode_value: barcode.trim(),
             product_ocr:   product_ocr  || '',
             barcode_ocr:   barcode_ocr   || '',
             yolo_label:    yolo_label    || '',
         }, { timeout: 10000 });
         return res.status(200).json(faResp.data);
     } catch {
+        // If match failed, remove the UID we just added so the customer can retry
+        try { await redisClient.sRem(uidKey, uidValue); } catch {}
         return res.status(503).json({ found: false, match: false, message: 'Inventory service unavailable.' });
     }
 });
@@ -879,7 +915,39 @@ app.post('/api/checkout/pay', isAuth, async (req, res) => {
             .catch(err => console.error('Low-stock email error:', err.message));
     }
 
-    return res.status(200).json({ ok: true, lowStock });
+    // ── Auto-end customer session after successful payment ─────────────────
+    // If caller is a customer, schedule session expiry in 5 seconds.
+    // This gives the frontend time to show the success screen before logout.
+    const paymentTotal = cleanItems.reduce((sum, item) => sum + item.qty, 0);
+
+    if (shop.role === 'customer' && shop.session_token) {
+        const autoEndToken = shop.session_token;
+        setTimeout(async () => {
+            try {
+                // Mark session as paid in DB
+                await db.query(
+                    `UPDATE customer_sessions
+                     SET status = 'paid', expired_at = NOW(), payment_total = $1
+                     WHERE session_token = $2 AND status = 'active'`,
+                    [paymentTotal, autoEndToken]
+                );
+                // Clean up Redis
+                await redisClient.del(`customer:session:${autoEndToken}`).catch(() => {});
+                await redisClient.del(`session:uids:${autoEndToken}`).catch(() => {});
+                // Broadcast session expired so frontend auto-navigates
+                broadcastToShop(shop.id, {
+                    type: 'SESSION_EXPIRED',
+                    token: autoEndToken,
+                    reason: 'Transaction complete — session auto-ended.',
+                });
+                console.log(`⏱️ Auto-expired customer session: ${autoEndToken.slice(0, 8)}… (5s after payment)`);
+            } catch (err) {
+                console.error('Auto session-end error:', err.message);
+            }
+        }, 5000);
+    }
+
+    return res.status(200).json({ ok: true, lowStock, sessionAutoEnd: shop.role === 'customer' ? 5 : null });
 });
 
 // ── ALERTS ────────────────────────────────────────────────────────────────────

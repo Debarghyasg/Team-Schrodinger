@@ -127,9 +127,16 @@ function ScanCapture({ onVerified, scanning, setScanning }) {
           image_b64:   productB64?.split(',')[1] || null,
         }),
       })
-      if (!res.ok) throw new Error(`${res.status}`)
-      const data = await res.json()
-      await onVerified(data, barcodeValue, productB64)
+      if (res.status === 409) {
+        // Duplicate UID — already scanned in this session
+        const dupData = await res.json().catch(() => ({}))
+        await onVerified(dupData, barcodeValue, productB64)
+      } else if (!res.ok) {
+        throw new Error(`${res.status}`)
+      } else {
+        const data = await res.json()
+        await onVerified(data, barcodeValue, productB64)
+      }
     } catch (err) {
       await onVerified(null, barcodeValue, productB64, err.message)
     } finally {
@@ -445,20 +452,27 @@ export default function TransactionPage({ user, setUser }) {
   }
 
   function addToCart(item) {
-    setCart(prev => {
-      const existing = prev.findIndex(c => c.barcode && c.barcode === item.barcode)
-      if (existing >= 0) {
-        const next = [...prev]
-        next[existing] = { ...next[existing], qty: next[existing].qty + 1 }
-        return next
-      }
-      return [{ ...item, id: uid(), qty: 1 }, ...prev]
-    })
+    // Each scanned item is a unique physical unit (UID enforced by backend)
+    // So we always add as a new row — no quantity increment for same barcode
+    setCart(prev => [{ ...item, id: uid(), qty: 1 }, ...prev])
   }
 
   const handleVerified = useCallback(async (data, barcodeValue, productB64, errMsg) => {
     if (errMsg || !data) {
+      // Check if the error is a duplicate UID (409)
+      if (errMsg && errMsg.includes('409')) {
+        showToast(`This product was already scanned in this session. Use a different unit or provide its MK ID.`, 'warn')
+        setScannerOpen(false)
+        return
+      }
       showToast(`Verification failed${errMsg ? ': ' + errMsg : ''}`, 'error')
+      return
+    }
+
+    // Handle duplicate_uid response from backend
+    if (data.status === 'duplicate_uid') {
+      showToast(data.message || 'This product was already scanned in this session.', 'warn')
+      setScannerOpen(false)
       return
     }
 
@@ -547,6 +561,15 @@ export default function TransactionPage({ user, setUser }) {
       }
       setScanning(false)
       setPaid(true)
+
+      // Auto-end session after 5 seconds if server signals it
+      if (data.sessionAutoEnd) {
+        setTimeout(() => {
+          fetch('/api/logout', { credentials: 'include' }).catch(() => {})
+          setUser(null)
+          navigate('/')
+        }, data.sessionAutoEnd * 1000)
+      }
     } catch (err) {
       showToast(`Payment error: ${err.message}`, 'error')
       setScanning(false)
@@ -568,8 +591,11 @@ export default function TransactionPage({ user, setUser }) {
         <div style={{ fontSize:64,animation:'popIn .5s cubic-bezier(.34,1.56,.64,1) both' }}>✅</div>
         <div style={{ fontFamily:"'Sora',sans-serif",fontSize:28,fontWeight:800,color:'#86efac',animation:'popIn .5s .1s cubic-bezier(.34,1.56,.64,1) both' }}>Payment Complete</div>
         <div style={{ fontSize:13,color:'#4c1d95',animation:'popIn .5s .2s cubic-bezier(.34,1.56,.64,1) both' }}>₹{total.toFixed(2)} · {verifiedItems.length} item{verifiedItems.length!==1?'s':''}</div>
+        <div style={{ fontSize:11,color:'#a78bfa',fontFamily:'monospace',animation:'popIn .5s .25s cubic-bezier(.34,1.56,.64,1) both',letterSpacing:'.8px' }}>
+          Session will auto-end in 5 seconds…
+        </div>
         <button
-          onClick={() => navigate('/home')}
+          onClick={() => { fetch('/api/logout', { credentials: 'include' }).catch(() => {}); setUser(null); navigate('/') }}
           style={{
             marginTop:20, padding:'16px 44px', borderRadius:14, border:'none', cursor:'pointer',
             fontFamily:"'Sora',sans-serif", fontSize:16, fontWeight:800, letterSpacing:'.3px',
@@ -582,10 +608,10 @@ export default function TransactionPage({ user, setUser }) {
           onMouseOver={e => { e.currentTarget.style.transform='translateY(-2px)'; e.currentTarget.style.boxShadow='0 10px 44px rgba(124,58,237,.6)' }}
           onMouseOut={e => { e.currentTarget.style.transform='none'; e.currentTarget.style.boxShadow='0 6px 36px rgba(124,58,237,.45)' }}
         >
-          ✕ End Session — Next Customer
+          ✕ End Session Now
         </button>
         <p style={{ fontSize:11, color:'#4c1d95', fontFamily:'monospace', letterSpacing:'.8px', animation:'popIn .5s .45s cubic-bezier(.34,1.56,.64,1) both' }}>
-          Returns to home screen for the next customer
+          Auto-ending session… thank you for shopping!
         </p>
       </div>
     </>

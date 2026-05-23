@@ -293,7 +293,7 @@ app.post('/api/admin/login', async (req, res) => {
         return res.status(200).json({
             message: 'Admin login successful.',
             user: req.session.user,
-            redirect: '/admin',
+            redirect: '/home',
         });
 
     } catch (err) {

@@ -191,19 +191,17 @@ function InputField({ icon, label, type = 'text', placeholder, value, onChange, 
 const validators = {
   ownerName: v => v.trim().length >= 2 ? '' : 'Enter a valid owner name.',
   shopName:  v => v.trim().length >= 2 ? '' : 'Enter a valid shop name.',
-  phone:     v => /^[+]?[\d\s\-()]{7,15}$/.test(v.trim()) ? '' : 'Enter a valid phone number.',
   email:     v => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim()) ? '' : 'Enter a valid email address.',
-  address:   v => v.trim().length >= 10 ? '' : 'Address must be at least 10 characters.',
-  password:  v => v.length >= 8 ? '' : 'Password must be at least 8 characters.',
-  confirmPwd: v => ''
+  uniqueCode: v => v.length >= 6 ? '' : 'Unique code must be at least 6 characters.',
+  confirmCode: v => ''
 }
 
 /* ─── Main Signup Page ───────────────────────────────────────────────── */
 export default function SignupPage() {
   const navigate = useNavigate()
-  const [form, setForm] = useState({ ownerName:'', shopName:'', phone:'', email:'', address:'', password:'', confirmPwd:'' })
+  const [form, setForm] = useState({ ownerName:'', shopName:'', email:'', uniqueCode:'', confirmCode:'' })
   const [errors, setErrors] = useState({})
-  const [showPwd, setShowPwd] = useState(false)
+  const [showCode, setShowCode] = useState(false)
   const [showConfirm, setShowConfirm] = useState(false)
   const [loading, setLoading] = useState(false)
   const [toast, setToast] = useState({ msg:'', type:'', show:false })
@@ -221,7 +219,7 @@ export default function SignupPage() {
   }
 
   function validate(field, value) {
-    if (field === 'confirmPwd') return value === form.password ? '' : 'Passwords do not match.'
+    if (field === 'confirmCode') return value === form.uniqueCode ? '' : 'Codes do not match.'
     return validators[field](value)
   }
 
@@ -243,21 +241,20 @@ export default function SignupPage() {
 
     setLoading(true)
     try {
-      const res = await fetch('/api/register', {
+      const res = await fetch('/api/admin/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          owner_name: form.ownerName.trim(),
-          shop_name:  form.shopName.trim(),
-          phone:      form.phone.trim(),
-          email:      form.email.trim(),
-          address:    form.address.trim(),
-          password:   form.password
+          owner_name:  form.ownerName.trim(),
+          shop_name:   form.shopName.trim(),
+          email:       form.email.trim(),
+          unique_code: form.uniqueCode,
+          shop_id:     1
         })
       })
       const data = await res.json()
       if (res.ok) {
-        showToastMsg('Store registered successfully! Welcome aboard.', 'success')
+        showToastMsg('Admin registered successfully! You can now login.', 'success')
         setTimeout(() => navigate('/'), 1800)
       } else {
         showToastMsg(data.message || 'Registration failed. Please try again.', 'error')
@@ -348,14 +345,14 @@ export default function SignupPage() {
               backgroundSize: '200% auto', animation: 'badgeShimmer 3.5s linear infinite',
             }}>
               <div style={{ width: 5, height: 5, borderRadius: '50%', background: '#a78bfa', animation: 'pulse 2s ease-in-out infinite' }} />
-              Create Store Account
+              Admin Registration
             </div>
 
             <h1 style={{ fontSize: 26, fontWeight: 800, color: '#fff', letterSpacing: '-.6px', marginBottom: 5, lineHeight: 1.1 }}>
-              Register Your Store
+              Register Admin Account
             </h1>
             <p style={{ fontSize: 13, color: 'rgba(255,255,255,.28)', marginBottom: 28, lineHeight: 1.6 }}>
-              Set up your retail intelligence account in minutes
+              Create your admin billing counter account
             </p>
 
             <form onSubmit={handleSubmit} autoComplete="off">
@@ -366,27 +363,25 @@ export default function SignupPage() {
                 <InputField icon="🏪" label="Shop Name" placeholder="My Retail Store"
                   value={form.shopName} error={errors.shopName} success={!errors.shopName && form.shopName}
                   onChange={e => setField('shopName', e.target.value)} onBlur={() => onBlur('shopName')} />
-                <InputField icon="📞" label="Phone Number" type="tel" placeholder="+91 98765 43210"
-                  value={form.phone} error={errors.phone} success={!errors.phone && form.phone}
-                  onChange={e => setField('phone', e.target.value)} onBlur={() => onBlur('phone')} />
-                <InputField icon="✉️" label="Email Address" type="email" placeholder="you@store.com"
-                  value={form.email} error={errors.email} success={!errors.email && form.email}
-                  onChange={e => setField('email', e.target.value)} onBlur={() => onBlur('email')} />
               </div>
 
-              <InputField icon="📍" label="Store Address" placeholder="123 Main Street, City, State - PIN" multiline
-                value={form.address} error={errors.address} success={!errors.address && form.address}
-                onChange={e => setField('address', e.target.value)} onBlur={() => onBlur('address')} />
+              <InputField icon="✉️" label="Admin Email" type="email" placeholder="admin@store.com"
+                value={form.email} error={errors.email} success={!errors.email && form.email}
+                onChange={e => setField('email', e.target.value)} onBlur={() => onBlur('email')} />
 
               <div className="su-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 16px' }}>
-                <InputField icon="🔑" label="Password" type={showPwd ? 'text' : 'password'} placeholder="Min 8 characters"
-                  value={form.password} error={errors.password} success={!errors.password && form.password}
-                  onChange={e => setField('password', e.target.value)} onBlur={() => onBlur('password')}
-                  suffix={<button type="button" onClick={() => setShowPwd(v=>!v)} style={{ background:'none', border:'none', cursor:'pointer', fontSize:14, color:'#5b21b6', padding:2 }}>{showPwd ? '🙈' : '👁️'}</button>} />
-                <InputField icon="🔒" label="Confirm Password" type={showConfirm ? 'text' : 'password'} placeholder="Re-enter password"
-                  value={form.confirmPwd} error={errors.confirmPwd} success={!errors.confirmPwd && form.confirmPwd}
-                  onChange={e => setField('confirmPwd', e.target.value)} onBlur={() => onBlur('confirmPwd')}
+                <InputField icon="🔐" label="Unique Security Code" type={showCode ? 'text' : 'password'} placeholder="Min 6 characters"
+                  value={form.uniqueCode} error={errors.uniqueCode} success={!errors.uniqueCode && form.uniqueCode}
+                  onChange={e => setField('uniqueCode', e.target.value)} onBlur={() => onBlur('uniqueCode')}
+                  suffix={<button type="button" onClick={() => setShowCode(v=>!v)} style={{ background:'none', border:'none', cursor:'pointer', fontSize:14, color:'#5b21b6', padding:2 }}>{showCode ? '🙈' : '👁️'}</button>} />
+                <InputField icon="🔒" label="Confirm Code" type={showConfirm ? 'text' : 'password'} placeholder="Re-enter code"
+                  value={form.confirmCode} error={errors.confirmCode} success={!errors.confirmCode && form.confirmCode}
+                  onChange={e => setField('confirmCode', e.target.value)} onBlur={() => onBlur('confirmCode')}
                   suffix={<button type="button" onClick={() => setShowConfirm(v=>!v)} style={{ background:'none', border:'none', cursor:'pointer', fontSize:14, color:'#5b21b6', padding:2 }}>{showConfirm ? '🙈' : '👁️'}</button>} />
+              </div>
+
+              <div style={{ padding:'10px 14px', borderRadius:10, background:'rgba(109,40,217,.06)', border:'1px solid rgba(109,40,217,.18)', marginBottom:16, fontFamily:'monospace', fontSize:10, color:'#4c1d95', lineHeight:1.6 }}>
+                ℹ️ This unique code will be used to login and logout. Keep it safe — you cannot recover it.
               </div>
 
 
@@ -406,7 +401,7 @@ export default function SignupPage() {
               >
                 {loading
                   ? <><span style={{ display:'inline-block', width:16, height:16, border:'2px solid rgba(255,255,255,.28)', borderTopColor:'#fff', borderRadius:'50%', animation:'spin .7s linear infinite' }} /> Creating account…</>
-                  : 'Create Store Account →'}
+                  : 'Register Admin Account →'}
               </button>
 
               {/* Sign in link */}

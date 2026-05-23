@@ -480,9 +480,13 @@ export default function TransactionPage({ user, setUser }) {
 
     if (type === 'mismatch') {
       setFraudCount(f => f + 1)
-      showToast(`Fraud detected — ${data.fraud_type || 'mismatch'} · Item flagged`, 'error')
+      showToast(`Fraud detected — ${data.fraud_type || 'mismatch'} · Item rejected`, 'error')
+      setScannerOpen(false)
+      return
     } else if (type === 'partial') {
-      showToast(`Partial match — ${data.product_name} · Adding with flag`, 'warn')
+      showToast(`Partial match — ${data.product_name} · Item NOT added (barcode/image mismatch)`, 'warn')
+      setScannerOpen(false)
+      return
     } else {
       showToast(`${data.product_name} verified · Added to cart`, 'success')
     }
@@ -499,8 +503,8 @@ export default function TransactionPage({ user, setUser }) {
     setCart(prev => prev.filter(c => c.id !== id))
   }
 
-  const verifiedItems = cart.filter(c => c.type === 'match' || c.type === 'partial')
-  const flaggedItems  = cart.filter(c => c.type === 'mismatch')
+  const verifiedItems = cart.filter(c => c.type === 'match')
+  const flaggedItems  = cart.filter(c => c.type === 'mismatch' || c.type === 'partial')
   const subtotal      = verifiedItems.reduce((s, c) => s + (c.price || 0) * c.qty, 0)
   const gst           = subtotal * 0.18
   const total         = subtotal + gst
@@ -552,8 +556,7 @@ export default function TransactionPage({ user, setUser }) {
   async function logout() {
     await fetch('/api/logout', { credentials: 'include' })
     setUser(null)
-    navigate(user?.role === 'customer' ? '/customer-login' : '/')
-  }
+    navigate('/')
   }
 
   /* ── Paid screen — show End Session button ── */

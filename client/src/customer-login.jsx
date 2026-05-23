@@ -18,6 +18,25 @@ export default function CustomerLoginPage({ setUser }) {
     const urlToken = params.get('token')
     if (urlToken && urlToken.length >= 10) {
       setToken(urlToken)
+      // Auto-submit: directly join the session
+      setLoading(true)
+      fetch('/api/customer/enter', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ token: urlToken.trim() }),
+      })
+        .then(r => r.json().then(data => ({ ok: r.ok, data })))
+        .then(({ ok, data }) => {
+          if (ok) {
+            setUser(data.user)
+            navigate('/transaction')
+          } else {
+            showToast(data.message || 'Invalid or expired token.', 'error')
+            setLoading(false)
+          }
+        })
+        .catch(() => { showToast('Connection error.', 'error'); setLoading(false) })
     }
   }, [])
 

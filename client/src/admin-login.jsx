@@ -34,7 +34,7 @@ export default function AdminLoginPage({ setUser }) {
       const data = await res.json()
       if (res.ok) {
         setUser(data.user)
-        navigate('/admin')
+        navigate('/home')
       } else {
         showToast(data.message || 'Login failed.', 'error')
       }
@@ -143,13 +143,7 @@ export default function AdminLoginPage({ setUser }) {
             </form>
 
             {/* Customer link */}
-            <div style={{ marginTop:20, textAlign:'center' }}>
-              <p style={{ fontSize:12, color:'rgba(255,255,255,.2)' }}>
-                Customer?{' '}
-                <a href="/customer-login" onClick={e => { e.preventDefault(); navigate('/customer-login') }}
-                  style={{ color:'#a78bfa', fontWeight:600, textDecoration:'none' }}>Enter with session token →</a>
-              </p>
-            </div>
+            {/* No customer login link needed — this is a no-person checkout */}
           </div>
 
           {/* Footer */}

@@ -552,8 +552,7 @@ export default function TransactionPage({ user, setUser }) {
   async function logout() {
     await fetch('/api/logout', { credentials: 'include' })
     setUser(null)
-    navigate(user?.role === 'customer' ? '/customer-login' : '/')
-  }
+    navigate('/')
   }
 
   /* ── Paid screen — show End Session button ── */

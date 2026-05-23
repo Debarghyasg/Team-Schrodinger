@@ -229,7 +229,7 @@ export default function AdminDashboard({ user, setUser }) {
                         }}>
                           {copiedToken === s.session_token ? '✓ Copied' : '📋 Copy Token'}
                         </button>
-                        <button onClick={() => navigate(`/customer?token=${s.session_token}`)} style={{
+                        <button onClick={() => window.open(`/customer?token=${s.session_token}`, '_blank')} style={{
                           padding:'6px 12px', borderRadius:8, fontSize:10, fontWeight:600,
                           border:'1px solid rgba(124,58,237,.3)', background:'rgba(124,58,237,.06)',
                           color:'#a78bfa', cursor:'pointer', fontFamily:'monospace',

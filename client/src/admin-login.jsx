@@ -146,6 +146,11 @@ export default function AdminLoginPage({ setUser }) {
             {/* Registration link for new admins */}
             <div style={{ marginTop:20, textAlign:'center' }}>
               <p style={{ fontSize:12, color:'rgba(255,255,255,.2)' }}>
+                Customer?{' '}
+                <a href="/customer" onClick={e => { e.preventDefault(); navigate('/customer') }}
+                  style={{ color:'#86efac', fontWeight:600, textDecoration:'none' }}>Enter session token →</a>
+              </p>
+              <p style={{ fontSize:12, color:'rgba(255,255,255,.2)', marginTop:8 }}>
                 New admin?{' '}
                 <a href="/signup" onClick={e => { e.preventDefault(); navigate('/signup') }}
                   style={{ color:'#a78bfa', fontWeight:600, textDecoration:'none' }}>Register account →</a>

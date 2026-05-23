@@ -30,10 +30,11 @@ function ParticleField() {
 }
 
 
-/* ── Scan input card (product image + typed barcode) ─────────── */
+/* ── Scan input card (product image + typed barcode + MK ID) ─────────── */
 function ScanCapture({ onVerified, scanning, setScanning }) {
   const [productB64, setProductB64]   = useState(null)
   const [barcodeInput, setBarcodeInput] = useState('')
+  const [mkIdInput, setMkIdInput]     = useState('')
   const [step, setStep]               = useState('idle')
   const [camOpen, setCamOpen]         = useState(false)
   const [camTarget, setCamTarget]     = useState(null)
@@ -41,6 +42,7 @@ function ScanCapture({ onVerified, scanning, setScanning }) {
   const [inputFocused, setInputFocused] = useState(false)
   const productRef      = useRef(null)
   const barcodeFieldRef = useRef(null)
+  const mkIdFieldRef    = useRef(null)
   const videoRef        = useRef(null)
   const streamRef       = useRef(null)
 
@@ -54,6 +56,10 @@ function ScanCapture({ onVerified, scanning, setScanning }) {
   useEffect(() => {
     if (step === 'barcode') {
       const t = setTimeout(() => barcodeFieldRef.current?.focus(), 120)
+      return () => clearTimeout(t)
+    }
+    if (step === 'mkid') {
+      const t = setTimeout(() => mkIdFieldRef.current?.focus(), 120)
       return () => clearTimeout(t)
     }
   }, [step])
@@ -94,12 +100,19 @@ function ScanCapture({ onVerified, scanning, setScanning }) {
   function submitBarcode() {
     const v = barcodeInput.trim()
     if (v.length < 4 || !productB64 || scanning) return
+    setStep('mkid')
+  }
+
+  function submitMkId() {
+    if (!productB64 || barcodeInput.trim().length < 4 || scanning) return
+    // MK ID is optional but recommended — proceed to verify
     setStep('ready')
   }
 
 
   async function runVerify() {
     const barcodeValue = barcodeInput.trim()
+    const mkIdValue = mkIdInput.trim()
     if (!productB64 || !barcodeValue) return
     setStep('verifying'); setScanning(true)
     setFlash(true); setTimeout(() => setFlash(false), 350)
@@ -121,6 +134,7 @@ function ScanCapture({ onVerified, scanning, setScanning }) {
         credentials: 'include',
         body: JSON.stringify({
           barcode:     barcodeValue,
+          mk_id:       mkIdValue || undefined,
           product_ocr: productOcrText || '',
           barcode_ocr: barcodeValue,
           yolo_label:  '',
@@ -140,7 +154,7 @@ function ScanCapture({ onVerified, scanning, setScanning }) {
     } catch (err) {
       await onVerified(null, barcodeValue, productB64, err.message)
     } finally {
-      setProductB64(null); setBarcodeInput('')
+      setProductB64(null); setBarcodeInput(''); setMkIdInput('')
       setStep('idle'); setScanning(false)
     }
   }
@@ -153,6 +167,7 @@ function ScanCapture({ onVerified, scanning, setScanning }) {
     idle:      { label: 'Step 1 — Product image',   color: '#a78bfa', icon: '📦' },
     product:   { label: 'Step 1 — Product image',   color: '#a78bfa', icon: '📦' },
     barcode:   { label: 'Step 2 — Enter barcode #', color: '#c4b5fd', icon: '⌨️' },
+    mkid:      { label: 'Step 3 — MK ID (Serial #)', color: '#fcd34d', icon: '🏭' },
     ready:     { label: 'Sending to AI…',           color: '#e9d5ff', icon: '⚡' },
     verifying: { label: 'AI Verifying…',            color: '#e9d5ff', icon: '⚡' },
   }
@@ -210,18 +225,22 @@ function ScanCapture({ onVerified, scanning, setScanning }) {
 
         {/* Progress dots */}
         <div style={{ padding:'12px 20px',display:'flex',alignItems:'center',gap:8 }}>
-          {['product','barcode'].map((s,i) => {
-            const done = (s==='product' && (productB64||step==='barcode'||step==='ready'||step==='verifying')) || (s==='barcode' && ((barcodeInput.trim().length>=4 && (step==='ready'||step==='verifying')) || step==='ready' || step==='verifying'))
-            const active = (s==='product' && (step==='idle'||step==='product')) || (s==='barcode' && step==='barcode')
+          {['product','barcode','mkid'].map((s,i) => {
+            const done = (s==='product' && (productB64||step==='barcode'||step==='mkid'||step==='ready'||step==='verifying'))
+                      || (s==='barcode' && (barcodeInput.trim().length>=4 && (step==='mkid'||step==='ready'||step==='verifying')))
+                      || (s==='mkid' && (step==='ready'||step==='verifying'))
+            const active = (s==='product' && (step==='idle'||step==='product'))
+                        || (s==='barcode' && step==='barcode')
+                        || (s==='mkid' && step==='mkid')
             return (
               <div key={s} style={{ display:'flex',alignItems:'center',gap:8 }}>
                 <div style={{ width:28,height:28,borderRadius:8,display:'flex',alignItems:'center',justifyContent:'center',fontSize:13,fontWeight:700,fontFamily:'monospace',background:done?'rgba(134,239,172,.1)':active?'rgba(124,58,237,.12)':'rgba(255,255,255,.03)',border:`1px solid ${done?'rgba(134,239,172,.4)':active?'rgba(124,58,237,.4)':'rgba(109,40,217,.2)'}`,color:done?'#86efac':active?'#a78bfa':'#4c1d95',transition:'all .3s' }}>
                   {done ? '✓' : i+1}
                 </div>
                 <span style={{ fontSize:11,color:done?'#86efac':active?'#a78bfa':'#4c1d95',fontFamily:'monospace',letterSpacing:'.5px',transition:'color .3s' }}>
-                  {s==='product'?'Product':'Barcode #'}
+                  {s==='product'?'Image':s==='barcode'?'Barcode':'MK ID'}
                 </span>
-                {i===0 && <div style={{ width:24,height:1,background:productB64?'rgba(134,239,172,.4)':'rgba(109,40,217,.2)',transition:'background .3s' }} />}
+                {i<2 && <div style={{ width:20,height:1,background:done?'rgba(134,239,172,.4)':'rgba(109,40,217,.2)',transition:'background .3s' }} />}
               </div>
             )
           })}
@@ -355,6 +374,71 @@ function ScanCapture({ onVerified, scanning, setScanning }) {
                 onMouseOut={e => e.currentTarget.style.transform='none'}
               >
                 ⚡ Verify
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* MK ID input */}
+        {step==='mkid' && (
+          <div style={{ padding:'4px 20px 20px' }}>
+            <div style={{ display:'flex',alignItems:'center',gap:10,padding:'8px 10px',marginBottom:12,borderRadius:10,background:'rgba(134,239,172,.06)',border:'1px solid rgba(134,239,172,.2)',fontFamily:'monospace',fontSize:11,color:'#86efac' }}>
+              <span>✓ Barcode: <strong>{barcodeInput}</strong></span>
+            </div>
+
+            <div style={{ position:'relative', borderRadius:12, background:'rgba(8,3,18,.95)', border:'1px solid rgba(252,211,77,.3)', padding:'18px 18px 14px' }}>
+              <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:10, fontFamily:'monospace', fontSize:10, letterSpacing:'1.5px', textTransform:'uppercase', color:'#92400e' }}>
+                <span style={{ fontSize:14 }}>🏭</span>
+                MK ID — Product Serial Number (on packaging)
+              </div>
+
+              <input
+                ref={mkIdFieldRef} type="text"
+                autoComplete="off" spellCheck={false} maxLength={30}
+                value={mkIdInput}
+                onChange={e => setMkIdInput(e.target.value.replace(/\s+/g,''))}
+                onKeyDown={e => { if (e.key === 'Enter') submitMkId() }}
+                placeholder="e.g. MFG-2024-ABX-0912"
+                style={{
+                  width:'100%', background:'rgba(252,211,77,.05)', border:'1px solid rgba(252,211,77,.3)', borderRadius:10,
+                  color:'#fcd34d', fontFamily:'monospace',
+                  fontSize:18, fontWeight:600, letterSpacing:'3px',
+                  textAlign:'center', padding:'14px 14px',
+                  outline:'none', caretColor:'#fcd34d',
+                  transition:'border-color .25s, box-shadow .25s',
+                }}
+                onFocus={e => { e.target.style.borderColor='rgba(252,211,77,.7)'; e.target.style.boxShadow='0 0 0 3px rgba(252,211,77,.12)' }}
+                onBlur={e => { e.target.style.borderColor='rgba(252,211,77,.3)'; e.target.style.boxShadow='none' }}
+              />
+
+              <p style={{ marginTop:10, fontSize:10, color:'#92400e', fontFamily:'monospace', lineHeight:1.5 }}>
+                Enter the manufacturer serial number printed on the product packaging. This ensures each physical unit is unique.
+              </p>
+            </div>
+
+            <div style={{ display:'flex', alignItems:'center', gap:10, marginTop:12 }}>
+              <span style={{ flex:1, fontFamily:'monospace', fontSize:10, color:'#4c1d95', letterSpacing:'.6px' }}>
+                ⏎ press <span style={{ color:'#fcd34d' }}>Enter</span> to verify · MK ID helps prevent duplicates
+              </span>
+              <button onClick={() => setStep('barcode')} style={{
+                padding:'10px 14px', borderRadius:10, cursor:'pointer',
+                fontSize:11, fontWeight:600, fontFamily:'monospace',
+                border:'1px solid rgba(109,40,217,.3)', background:'transparent', color:'#4c1d95',
+              }}>
+                ← Back
+              </button>
+              <button onClick={submitMkId} disabled={scanning}
+                style={{
+                  padding:'10px 16px', borderRadius:10, cursor:scanning?'not-allowed':'pointer',
+                  fontSize:12, fontWeight:700, fontFamily:'monospace', letterSpacing:'.6px',
+                  border:'none',
+                  background:'linear-gradient(135deg,#d97706,#92400e)',
+                  color:'#fff',
+                  opacity:scanning ? .5 : 1,
+                  boxShadow:'0 4px 22px rgba(217,119,6,.4)',
+                }}
+              >
+                ⚡ Verify Product
               </button>
             </div>
           </div>

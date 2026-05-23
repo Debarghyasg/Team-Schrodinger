@@ -38,6 +38,43 @@ const SALT_ROUNDS = 10;
 // ── SendGrid Setup ────────────────────────────────────────────────────────────
 sgMail.setApiKey(process.env.SENDGRID_API_KEY || '');
 
+// ── Groq / Llama AI Setup ─────────────────────────────────────────────────────
+const Groq = require('groq-sdk');
+const groqClient = new Groq({ apiKey: process.env.GROQ_API_KEY || '' });
+
+/**
+ * Generate a human-readable fraud alert explanation using Llama via Groq.
+ * Returns a plain-English summary the admin can quickly understand.
+ */
+async function generateFraudExplanation({ barcode, product_name, risk_score, action, intelligence_flags, shop_name }) {
+    if (!process.env.GROQ_API_KEY) return null; // Skip if no API key configured
+    try {
+        const prompt = `You are a retail fraud analyst AI. Write a brief, clear explanation (3-5 sentences) for a store admin about a fraud alert.
+
+Details:
+- Store: ${shop_name || 'Unknown'}
+- Product: ${product_name || 'Unknown product'}
+- Barcode: ${barcode}
+- Risk Score: ${Math.round((risk_score || 0) * 100)}%
+- Action Taken: ${action || 'BLOCKED'}
+- Intelligence Flags: ${intelligence_flags || 'None'}
+
+Write in simple language. Explain WHAT happened, WHY it's suspicious, and WHAT the admin should do next. Be concise and actionable.`;
+
+        const chatCompletion = await groqClient.chat.completions.create({
+            messages: [{ role: 'user', content: prompt }],
+            model: 'llama-3.1-8b-instant',
+            temperature: 0.3,
+            max_tokens: 250,
+        });
+
+        return chatCompletion.choices[0]?.message?.content?.trim() || null;
+    } catch (err) {
+        console.warn('Groq/Llama fraud explanation error (non-fatal):', err.message);
+        return null;
+    }
+}
+
 // ── Redis Client ──────────────────────────────────────────────────────────────
 const redisClient = createClient({
     url: process.env.REDIS_URL || 'redis://localhost:6379',
@@ -734,7 +771,8 @@ app.post('/api/checkout/verify', isAuth, async (req, res) => {
                 product_name: verifyResult.product_name,
                 risk_score:   verifyResult.fraud_risk,
                 timestamp:    new Date().toISOString(),
-                action:       'TRANSACTION_BLOCKED'
+                action:       'TRANSACTION_BLOCKED',
+                intelligence_flags: intelligenceFlags.join(' | '),
             }).catch(console.error);
 
             if (flagData.count >= 3 && !flagData.escalated) {
@@ -1046,7 +1084,22 @@ async function sendWelcomeEmail(email, ownerName, shopName) {
     console.log(`📧 Welcome email → ${email}`);
 }
 
-async function sendFraudAlertEmail(shop, { barcode, product_name, risk_score, timestamp, action }) {
+async function sendFraudAlertEmail(shop, { barcode, product_name, risk_score, timestamp, action, intelligence_flags }) {
+    // Generate AI explanation using Llama via Groq
+    const aiExplanation = await generateFraudExplanation({
+        barcode, product_name, risk_score, action,
+        intelligence_flags: intelligence_flags || '',
+        shop_name: shop.shop_name,
+    });
+
+    const aiSection = aiExplanation ? `
+          <tr><td colspan="2" style="padding:16px;border-top:2px solid #4a0d0f">
+            <div style="background:#1a0a0a;border:1px solid #3d0d0f;border-radius:10px;padding:16px">
+              <div style="font-size:11px;color:#ff8888;font-weight:700;letter-spacing:1px;text-transform:uppercase;margin-bottom:8px">🤖 AI ANALYSIS (Llama)</div>
+              <p style="color:#e2e8f0;font-size:13px;line-height:1.7;margin:0">${aiExplanation}</p>
+            </div>
+          </td></tr>` : '';
+
     await sgMail.send({
         to:      shop.email,
         from:    process.env.SENDGRID_FROM || 'alerts@smartretail.com',
@@ -1065,12 +1118,13 @@ async function sendFraudAlertEmail(shop, { barcode, product_name, risk_score, ti
                 <td style="padding:12px 16px;color:#ff4455;font-weight:700;border-bottom:1px solid #2a0d0f">${((risk_score||0)*100).toFixed(0)}%</td></tr>
             <tr><td style="padding:12px 16px;color:#64748b;font-size:12px;border-bottom:1px solid #2a0d0f">ACTION</td>
                 <td style="padding:12px 16px;color:#ff4455;font-weight:700;border-bottom:1px solid #2a0d0f">${action}</td></tr>
-            <tr><td style="padding:12px 16px;color:#64748b;font-size:12px">TIME</td>
-                <td style="padding:12px 16px;font-family:monospace;font-size:12px">${timestamp}</td></tr>
+            <tr><td style="padding:12px 16px;color:#64748b;font-size:12px${aiExplanation ? ';border-bottom:1px solid #2a0d0f' : ''}">TIME</td>
+                <td style="padding:12px 16px;font-family:monospace;font-size:12px${aiExplanation ? ';border-bottom:1px solid #2a0d0f' : ''}">${timestamp}</td></tr>
+            ${aiSection}
           </table>
         </div>`,
     });
-    console.log(`🚨 SendGrid fraud alert → ${shop.email}`);
+    console.log(`🚨 SendGrid fraud alert → ${shop.email}${aiExplanation ? ' (with Llama AI analysis)' : ''}`);
 }
 
 async function sendLowStockEmail(shop, lowStockItems) {

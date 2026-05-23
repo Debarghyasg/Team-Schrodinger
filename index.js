@@ -131,7 +131,7 @@ app.use(express.static(path.join(__dirname, 'client/dist')));
 // ── Auth Guard ────────────────────────────────────────────────────────────────
 const isAuth = (req, res, next) => {
     if (req.session.user) return next();
-    res.redirect('/');
+    return res.status(401).json({ message: 'Authentication required.' });
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -144,7 +144,7 @@ app.get('/api/me', (req, res) => {
     return res.status(401).json({ user: null });
 });
 
-// ── AUTH ──────────────────────────────────────────────────────────────────────
+// ── AUTH (legacy retailer login — still works for backward compat) ────────────
 
 // POST /api/register
 app.post('/api/register', async (req, res) => {
@@ -208,9 +208,361 @@ app.post('/api/login', async (req, res) => {
     }
 });
 
-// POST /api/logout
+// POST /api/logout (legacy — kept for backward compat)
 app.post('/api/logout', (req, res) => {
     req.session.destroy(() => res.json({ message: 'Logged out.' }));
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ADMIN SESSION MANAGEMENT
+// ─────────────────────────────────────────────────────────────────────────────
+const crypto = require('crypto');
+
+// Helper: generate a unique customer session token
+function generateSessionToken() {
+    return crypto.randomUUID().replace(/-/g, '').slice(0, 32);
+}
+
+// Middleware: Admin-only guard
+const isAdmin = (req, res, next) => {
+    if (req.session.user && req.session.user.role === 'admin') return next();
+    return res.status(403).json({ message: 'Admin access required.' });
+};
+
+// Middleware: Customer (active session) guard
+const isCustomer = async (req, res, next) => {
+    if (!req.session.user || req.session.user.role !== 'customer') {
+        return res.status(403).json({ message: 'Active customer session required.' });
+    }
+    // Check if session is still active in DB
+    const token = req.session.user.session_token;
+    if (!token) return res.status(403).json({ message: 'No session token.' });
+    try {
+        const r = await db.query(
+            'SELECT status FROM customer_sessions WHERE session_token = $1',
+            [token]
+        );
+        if (r.rows.length === 0 || r.rows[0].status !== 'active') {
+            req.session.destroy(() => {});
+            return res.status(440).json({ message: 'Session expired.', expired: true });
+        }
+    } catch (err) {
+        console.error('Customer session check error:', err.message);
+    }
+    return next();
+};
+
+// POST /api/admin/login — Admin logs in with email + unique_code
+app.post('/api/admin/login', async (req, res) => {
+    const { email, unique_code } = req.body;
+    if (!email || !unique_code)
+        return res.status(400).json({ message: 'Email and unique code are required.' });
+
+    try {
+        const result = await db.query(
+            'SELECT id, email, owner_name, shop_name, unique_code, shop_id FROM admins WHERE email = $1',
+            [email.trim().toLowerCase()]
+        );
+        if (result.rows.length === 0)
+            return res.status(401).json({ message: 'Invalid admin credentials.' });
+
+        const admin = result.rows[0];
+        const codeMatch = await bcrypt.compare(unique_code, admin.unique_code);
+        if (!codeMatch)
+            return res.status(401).json({ message: 'Invalid admin credentials.' });
+
+        // Admin session: 16 hours (full day shift)
+        req.session.cookie.maxAge = 16 * 60 * 60 * 1000;
+        req.session.user = {
+            id: admin.id,
+            name: admin.owner_name,
+            shop_name: admin.shop_name,
+            email: admin.email,
+            shop_id: admin.shop_id,
+            role: 'admin',
+        };
+
+        // Track in Redis for persistence awareness
+        await redisClient.set(`admin:session:${admin.id}`, JSON.stringify({
+            logged_in_at: new Date().toISOString(),
+            shop_name: admin.shop_name,
+        }), { EX: 16 * 60 * 60 }).catch(() => {});
+
+        console.log(`🔑 Admin login: ${admin.email} (Shop: ${admin.shop_name})`);
+        return res.status(200).json({
+            message: 'Admin login successful.',
+            user: req.session.user,
+            redirect: '/admin',
+        });
+
+    } catch (err) {
+        console.error('❌ Admin login error:', err.message);
+        return res.status(500).json({ message: 'Server error. Please try again.' });
+    }
+});
+
+// POST /api/admin/logout — Admin self-logout (requires unique_code confirmation)
+app.post('/api/admin/logout', isAdmin, async (req, res) => {
+    const { unique_code } = req.body;
+    if (!unique_code)
+        return res.status(400).json({ message: 'Unique code required to logout.' });
+
+    try {
+        const adminId = req.session.user.id;
+        const result = await db.query(
+            'SELECT unique_code FROM admins WHERE id = $1',
+            [adminId]
+        );
+        if (result.rows.length === 0)
+            return res.status(404).json({ message: 'Admin not found.' });
+
+        const codeMatch = await bcrypt.compare(unique_code, result.rows[0].unique_code);
+        if (!codeMatch)
+            return res.status(401).json({ message: 'Invalid code. Logout denied.' });
+
+        // Expire all active customer sessions for this admin
+        await db.query(
+            `UPDATE customer_sessions SET status = 'expired', expired_at = NOW()
+             WHERE admin_id = $1 AND status = 'active'`,
+            [adminId]
+        );
+
+        // Broadcast SESSION_EXPIRED to all connected customers of this shop
+        const shopId = req.session.user.shop_id;
+        broadcastToShop(shopId, { type: 'SESSION_EXPIRED', reason: 'Admin logged out — counter closed.' });
+
+        // Clean up Redis
+        await redisClient.del(`admin:session:${adminId}`).catch(() => {});
+
+        // Destroy admin session
+        req.session.destroy(() => {
+            console.log(`🔒 Admin logout: ID ${adminId} — all customer sessions expired.`);
+            res.json({ message: 'Admin logged out. All customer sessions expired.' });
+        });
+
+    } catch (err) {
+        console.error('❌ Admin logout error:', err.message);
+        return res.status(500).json({ message: 'Server error.' });
+    }
+});
+
+// POST /api/admin/create-customer-session — Generate a new customer session
+app.post('/api/admin/create-customer-session', isAdmin, async (req, res) => {
+    const { customer_name } = req.body;
+    const admin = req.session.user;
+    const token = generateSessionToken();
+
+    try {
+        const result = await db.query(
+            `INSERT INTO customer_sessions (shop_id, admin_id, session_token, customer_name, status, created_at)
+             VALUES ($1, $2, $3, $4, 'active', NOW())
+             RETURNING id, session_token, customer_name, status, created_at`,
+            [admin.shop_id, admin.id, token, (customer_name || 'Customer').trim()]
+        );
+
+        const session = result.rows[0];
+
+        // Store in Redis for fast polling
+        await redisClient.set(`customer:session:${token}`, JSON.stringify({
+            id: session.id,
+            shop_id: admin.shop_id,
+            admin_id: admin.id,
+            status: 'active',
+            created_at: session.created_at,
+        })).catch(() => {});
+
+        console.log(`🎫 Customer session created: ${token.slice(0, 8)}… (Admin: ${admin.email})`);
+        return res.status(201).json({
+            message: 'Customer session created.',
+            session: {
+                token: session.session_token,
+                customer_name: session.customer_name,
+                status: session.status,
+                created_at: session.created_at,
+            },
+        });
+
+    } catch (err) {
+        console.error('❌ Create customer session error:', err.message);
+        return res.status(500).json({ message: 'Failed to create session.' });
+    }
+});
+
+// POST /api/admin/expire-customer-session — Kill a customer session after payment
+app.post('/api/admin/expire-customer-session', isAdmin, async (req, res) => {
+    const { token, payment_total } = req.body;
+    if (!token)
+        return res.status(400).json({ message: 'Session token is required.' });
+
+    const admin = req.session.user;
+
+    try {
+        const result = await db.query(
+            `UPDATE customer_sessions
+             SET status = 'paid', expired_at = NOW(), payment_total = $1
+             WHERE session_token = $2 AND admin_id = $3 AND status = 'active'
+             RETURNING id, customer_name`,
+            [payment_total || 0, token, admin.id]
+        );
+
+        if (result.rowCount === 0)
+            return res.status(404).json({ message: 'No active session found with this token.' });
+
+        // Remove from Redis
+        await redisClient.del(`customer:session:${token}`).catch(() => {});
+
+        // Broadcast SESSION_EXPIRED via WebSocket for instant customer logout
+        broadcastToShop(admin.shop_id, {
+            type: 'SESSION_EXPIRED',
+            token,
+            reason: 'Payment completed — session ended by admin.',
+        });
+
+        console.log(`💳 Customer session expired: ${token.slice(0, 8)}… (₹${payment_total || 0})`);
+        return res.status(200).json({
+            message: 'Customer session expired successfully.',
+            customer_name: result.rows[0].customer_name,
+        });
+
+    } catch (err) {
+        console.error('❌ Expire session error:', err.message);
+        return res.status(500).json({ message: 'Failed to expire session.' });
+    }
+});
+
+// GET /api/admin/active-sessions — List all active customer sessions
+app.get('/api/admin/active-sessions', isAdmin, async (req, res) => {
+    const admin = req.session.user;
+    try {
+        const result = await db.query(
+            `SELECT id, session_token, customer_name, status, created_at, expired_at, payment_total
+             FROM customer_sessions
+             WHERE admin_id = $1
+             ORDER BY created_at DESC
+             LIMIT 50`,
+            [admin.id]
+        );
+        return res.json({ sessions: result.rows });
+    } catch (err) {
+        console.error('Active sessions query error:', err.message);
+        return res.status(500).json({ sessions: [] });
+    }
+});
+
+// POST /api/customer/enter — Customer joins with session token
+app.post('/api/customer/enter', async (req, res) => {
+    const { token } = req.body;
+    if (!token || token.length < 10)
+        return res.status(400).json({ message: 'Invalid session token.' });
+
+    try {
+        const result = await db.query(
+            `SELECT cs.id, cs.shop_id, cs.admin_id, cs.customer_name, cs.status,
+                    r.shop_name, r.owner_name
+             FROM customer_sessions cs
+             JOIN retailers r ON r.id = cs.shop_id
+             WHERE cs.session_token = $1`,
+            [token.trim()]
+        );
+
+        if (result.rows.length === 0)
+            return res.status(404).json({ message: 'Session not found.' });
+
+        const sess = result.rows[0];
+        if (sess.status !== 'active')
+            return res.status(410).json({ message: 'Session has expired.', expired: true });
+
+        // Set customer session in express-session
+        req.session.user = {
+            id: sess.shop_id,          // use shop_id for checkout API compat
+            name: sess.customer_name,
+            shop_name: sess.shop_name,
+            email: null,
+            role: 'customer',
+            session_token: token.trim(),
+            customer_session_id: sess.id,
+        };
+
+        // No auto-expiry for customer — admin controls it
+        req.session.cookie.maxAge = 4 * 60 * 60 * 1000; // 4h max safety net
+
+        console.log(`👤 Customer entered: ${sess.customer_name} (Token: ${token.slice(0, 8)}…)`);
+        return res.status(200).json({
+            message: 'Welcome!',
+            user: req.session.user,
+            redirect: '/transaction',
+        });
+
+    } catch (err) {
+        console.error('❌ Customer enter error:', err.message);
+        return res.status(500).json({ message: 'Server error.' });
+    }
+});
+
+// GET /api/customer/session-status — Customer polls this to check if still active
+app.get('/api/customer/session-status', async (req, res) => {
+    if (!req.session.user || req.session.user.role !== 'customer') {
+        return res.status(401).json({ active: false, message: 'Not a customer session.' });
+    }
+
+    const token = req.session.user.session_token;
+    if (!token) return res.status(401).json({ active: false });
+
+    try {
+        // Fast path: check Redis first
+        const cached = await redisClient.get(`customer:session:${token}`).catch(() => null);
+        if (cached) {
+            const data = JSON.parse(cached);
+            if (data.status === 'active') return res.json({ active: true });
+        }
+
+        // Fallback: check DB
+        const r = await db.query(
+            'SELECT status FROM customer_sessions WHERE session_token = $1',
+            [token]
+        );
+        if (r.rows.length === 0 || r.rows[0].status !== 'active') {
+            // Session is gone — destroy customer's express session
+            req.session.destroy(() => {});
+            return res.json({ active: false, expired: true, message: 'Session expired by admin.' });
+        }
+
+        return res.json({ active: true });
+    } catch (err) {
+        console.error('Session status check error:', err.message);
+        return res.json({ active: true }); // fail-open so customer isn't kicked by network blip
+    }
+});
+
+// POST /api/admin/register — Create a new admin account (one-time setup)
+app.post('/api/admin/register', async (req, res) => {
+    const { email, owner_name, shop_name, unique_code, shop_id } = req.body;
+
+    if (!email || !owner_name || !shop_name || !unique_code)
+        return res.status(400).json({ message: 'All fields are required.' });
+    if (unique_code.length < 6)
+        return res.status(400).json({ message: 'Unique code must be at least 6 characters.' });
+
+    try {
+        const existing = await db.query('SELECT id FROM admins WHERE email = $1', [email.trim().toLowerCase()]);
+        if (existing.rows.length > 0)
+            return res.status(409).json({ message: 'Admin with this email already exists.' });
+
+        const hashedCode = await bcrypt.hash(unique_code, SALT_ROUNDS);
+        const result = await db.query(
+            `INSERT INTO admins (email, owner_name, shop_name, unique_code, shop_id, created_at)
+             VALUES ($1, $2, $3, $4, $5, NOW())
+             RETURNING id, email, owner_name, shop_name`,
+            [email.trim().toLowerCase(), owner_name.trim(), shop_name.trim(), hashedCode, shop_id || null]
+        );
+
+        console.log(`✅ Admin registered: ${result.rows[0].email}`);
+        return res.status(201).json({ message: 'Admin registered successfully!', admin: result.rows[0] });
+
+    } catch (err) {
+        console.error('❌ Admin registration error:', err.message);
+        return res.status(500).json({ message: 'Server error.' });
+    }
 });
 
 // ── CHECKOUT ──────────────────────────────────────────────────────────────────

@@ -437,6 +437,48 @@ export default function TransactionPage({ user, setUser }) {
     }
   }, [])
 
+  // ── Session-status polling: customer gets kicked when admin expires session ──
+  useEffect(() => {
+    if (!user || user.role !== 'customer') return
+    let active = true
+    const poll = async () => {
+      try {
+        const res = await fetch('/api/customer/session-status', { credentials: 'include' })
+        const data = await res.json()
+        if (!data.active || data.expired) {
+          if (active) {
+            setUser(null)
+            navigate('/session-expired', { replace: true })
+          }
+        }
+      } catch {}
+    }
+    const interval = setInterval(poll, 5000) // poll every 5 seconds
+    // Also listen for WebSocket SESSION_EXPIRED
+    const proto = location.protocol === 'https:' ? 'wss' : 'ws'
+    let ws
+    try {
+      ws = new WebSocket(`${proto}://${window.location.host}/ws`)
+      ws.onopen = () => { if (user?.id) ws.send(JSON.stringify({ shopId: user.id })) }
+      ws.onmessage = (e) => {
+        try {
+          const msg = JSON.parse(e.data)
+          if (msg.type === 'SESSION_EXPIRED') {
+            if (active) {
+              setUser(null)
+              navigate('/session-expired', { replace: true })
+            }
+          }
+        } catch {}
+      }
+    } catch {}
+    return () => {
+      active = false
+      clearInterval(interval)
+      try { ws?.close() } catch {}
+    }
+  }, [user])
+
   function showToast(msg, type = 'info') {
     setToast({ msg, type, show: true })
     setTimeout(() => setToast(t => ({ ...t, show: false })), 4000)
@@ -550,7 +592,9 @@ export default function TransactionPage({ user, setUser }) {
 
   async function logout() {
     await fetch('/api/logout', { credentials: 'include' })
-    setUser(null); navigate('/')
+    setUser(null)
+    navigate(user?.role === 'customer' ? '/customer-login' : '/')
+  }
   }
 
   /* ── Paid screen ── */

@@ -1,6 +1,6 @@
 # Nyatik Nayan
 
-An intelligent retail fraud detection and checkout management platform built for **Cognizant Technoverse 2026**. Nyatik Nayan enables store admins to manage customer sessions, scan product barcodes at checkout, and instantly detect counterfeit or mismatched goods using AI-powered verification, real-time fraud scoring, and automated alerting.
+An intelligent retail fraud detection and checkout management platform built for **HackArena 2.0**. Nyatik Nayan enables store admins to manage customer sessions, scan product barcodes at checkout, and instantly detect counterfeit or mismatched goods using AI-powered verification, real-time fraud scoring, and automated alerting.
 
 ---
 
@@ -421,4 +421,4 @@ Possible `fraud_type` values: `"LABEL_SWAP"`, `"PARTIAL_MISMATCH"`, `"LOW_CONFID
 
 ## Team
 
-Built by **Team Schrodinger** for Cognizant Technoverse 2026.
+Built by **Team Schrodinger** for HackArena 2.0.

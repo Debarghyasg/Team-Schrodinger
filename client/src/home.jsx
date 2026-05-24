@@ -84,9 +84,125 @@ function FeatureCard({ icon, title, description, delay = '0s' }) {
   )
 }
 
+/* ─── Welcome Overlay ────────────────────────────────────────────────── */
+function WelcomeOverlay({ name, onDone }) {
+  const [phase, setPhase] = useState(0) // 0=enter, 1=hold, 2=exit
+
+  useEffect(() => {
+    const t1 = setTimeout(() => setPhase(1), 100)
+    const t2 = setTimeout(() => setPhase(2), 2800)
+    const t3 = setTimeout(() => onDone(), 3600)
+    return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3) }
+  }, [onDone])
+
+  return (
+    <div style={{
+      position: 'fixed', inset: 0, zIndex: 9999,
+      display: 'flex', flexDirection: 'column',
+      alignItems: 'center', justifyContent: 'center',
+      background: '#000',
+      opacity: phase === 2 ? 0 : 1,
+      transition: 'opacity 0.8s ease-out',
+      pointerEvents: phase === 2 ? 'none' : 'all',
+    }}>
+      {/* Radial glow */}
+      <div style={{
+        position: 'absolute', inset: 0, pointerEvents: 'none',
+        background: 'radial-gradient(ellipse 60% 50% at 50% 50%, rgba(124,58,237,.25) 0%, transparent 70%)',
+        opacity: phase >= 1 ? 1 : 0,
+        transition: 'opacity 1.2s ease',
+      }} />
+
+      {/* Animated ring */}
+      <div style={{
+        width: 120, height: 120, borderRadius: '50%',
+        border: '2px solid rgba(124,58,237,.3)',
+        borderTopColor: '#a78bfa',
+        animation: 'spin 1.2s linear infinite',
+        position: 'absolute',
+        opacity: phase >= 1 ? 0.6 : 0,
+        transition: 'opacity 0.6s ease',
+      }} />
+
+      {/* Greeting text */}
+      <div style={{
+        position: 'relative', zIndex: 1,
+        textAlign: 'center',
+        transform: phase >= 1 ? 'translateY(0) scale(1)' : 'translateY(30px) scale(0.9)',
+        opacity: phase >= 1 ? 1 : 0,
+        transition: 'all 0.8s cubic-bezier(.22,1,.36,1)',
+      }}>
+        <div style={{
+          fontSize: 14, fontFamily: 'monospace',
+          letterSpacing: '3px', textTransform: 'uppercase',
+          color: '#7c3aed', marginBottom: 12,
+          opacity: phase >= 1 ? 1 : 0,
+          transform: phase >= 1 ? 'translateY(0)' : 'translateY(10px)',
+          transition: 'all 0.6s ease 0.3s',
+        }}>
+          Welcome back
+        </div>
+
+        <h1 style={{
+          fontFamily: "'Sora', sans-serif",
+          fontSize: 'clamp(36px, 8vw, 64px)',
+          fontWeight: 800,
+          letterSpacing: '-2px',
+          background: 'linear-gradient(135deg, #e9d5ff, #a78bfa, #7c3aed)',
+          WebkitBackgroundClip: 'text',
+          WebkitTextFillColor: 'transparent',
+          margin: '0 0 16px',
+          opacity: phase >= 1 ? 1 : 0,
+          transform: phase >= 1 ? 'translateY(0)' : 'translateY(20px)',
+          transition: 'all 0.7s cubic-bezier(.22,1,.36,1) 0.15s',
+        }}>
+          {name || 'User'}
+        </h1>
+
+        <div style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+          opacity: phase >= 1 ? 1 : 0,
+          transform: phase >= 1 ? 'translateY(0)' : 'translateY(10px)',
+          transition: 'all 0.6s ease 0.5s',
+        }}>
+          <div style={{
+            width: 8, height: 8, borderRadius: '50%',
+            background: '#86efac', boxShadow: '0 0 12px #86efac',
+            animation: 'pulse 1.5s ease-in-out infinite',
+          }} />
+          <span style={{
+            fontSize: 12, color: '#4c1d95',
+            fontFamily: 'monospace', letterSpacing: '1.5px',
+          }}>
+            System Ready · NyatikNayan Active
+          </span>
+        </div>
+      </div>
+
+      {/* Bottom particles */}
+      {Array.from({ length: 12 }, (_, i) => (
+        <div key={i} style={{
+          position: 'absolute',
+          left: `${10 + (i * 7.5)}%`,
+          bottom: `${10 + (i % 4) * 15}%`,
+          width: 3 + (i % 3),
+          height: 3 + (i % 3),
+          borderRadius: '50%',
+          background: '#7c3aed',
+          opacity: phase >= 1 ? 0.4 : 0,
+          transform: phase >= 1 ? `translateY(0)` : `translateY(40px)`,
+          transition: `all 1s ease ${0.1 * i}s`,
+          animation: phase >= 1 ? `floatA ${3 + (i % 2)}s ease-in-out ${i * 0.2}s infinite` : 'none',
+        }} />
+      ))}
+    </div>
+  )
+}
+
 /* ─── Main Home Page ─────────────────────────────────────────────────── */
 export default function HomePage({ user, setUser }) {
   const navigate = useNavigate()
+  const [showWelcome, setShowWelcome] = useState(true)
 
   useEffect(() => {
     const link = document.createElement('link')
@@ -103,6 +219,7 @@ export default function HomePage({ user, setUser }) {
 
   return (
     <>
+      {showWelcome && <WelcomeOverlay name={user?.name} onDone={() => setShowWelcome(false)} />}
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700;800&display=swap');
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
